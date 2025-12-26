@@ -1,0 +1,30 @@
+{
+  "anki_profile": "User 1",
+  "timezone": "local",
+  "theme": "dark-graphite",
+  "output_dir": "Tokei\\\\output",
+  "one_page": true,
+  "hashi": {
+    "host": "127.0.0.1",
+    "port": 8766,
+    "token": null,
+    "refresh_timeout_ms": 10000,
+    "require_fresh": true
+  },
+  "toggl": {
+    "start_date": "auto",
+    "refresh_days_back": 60,
+    "refresh_buffer_days": 2,
+    "chunk_days": 7,
+    "baseline_hours": 582.7130555555556
+  },
+  "ankimorphs": {
+    "known_interval_days": 21
+  },
+  "mokuro": {
+    "volume_data_path": "D:\\mokuro-reader\\volume-data.json"
+  },
+  "gsm": {
+    "db_path": "auto"
+  }
+}
