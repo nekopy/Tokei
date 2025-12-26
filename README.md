@@ -56,6 +56,26 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 3) Run Setup-Tokei.bat to configure your settings.
 4) Run run.bat to generate a report.
 
+## Build Tokei.exe (app-only)
+
+Tokei.exe bundles Python + the Tokei code, but still requires external Node.js and Puppeteer.
+It behaves like running Tokei.bat and does not install dependencies.
+
+Build steps (one-folder):
+
+1) Install PyInstaller into the local venv:
+   - `.venv\Scripts\python.exe -m pip install pyinstaller`
+2) Build:
+   - `.venv\Scripts\python.exe -m PyInstaller --clean --noconfirm tokei.spec`
+3) Output:
+   - `dist\Tokei\Tokei.exe`
+
+Run requirements for the built exe:
+
+- Node.js 18+ is on PATH
+- `node_modules\puppeteer` exists in the same folder as Tokei.exe (run Setup-Environment.bat there)
+- `config.json` exists (run Setup-Tokei.bat there)
+
 ## Re-running guidance
 
 - Setup-Environment.bat and Setup-Tokei.bat are typically one-time; rerun only when dependencies or settings change.

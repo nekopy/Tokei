@@ -708,7 +708,8 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv[1:])
 
-    root = Path(__file__).resolve().parents[1]
+    env_root = os.environ.get("TOKEI_USER_ROOT")
+    root = Path(env_root).resolve() if env_root else Path(__file__).resolve().parents[1]
     config_path = root / "config.json"
     cache_dir = root / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)

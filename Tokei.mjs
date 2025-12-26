@@ -8,10 +8,11 @@ import readline from "readline";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const appRoot = __dirname;
+const appRoot = process.env.TOKEI_APP_ROOT ? path.resolve(process.env.TOKEI_APP_ROOT) : __dirname;
+const userRoot = process.env.TOKEI_USER_ROOT ? path.resolve(process.env.TOKEI_USER_ROOT) : appRoot;
 
 function loadConfig() {
-  const configPath = path.join(__dirname, "config.json");
+  const configPath = path.join(userRoot, "config.json");
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
     return raw && typeof raw === "object" ? raw : {};
@@ -21,7 +22,18 @@ function loadConfig() {
 }
 
 function getConfigPath() {
-  return path.join(__dirname, "config.json");
+  return path.join(userRoot, "config.json");
+}
+
+function getPythonCommand() {
+  const cmd = process.env.TOKEI_PYTHON_EXE;
+  return cmd && cmd.trim() ? cmd.trim() : "python";
+}
+
+function getPythonArgsPrefix() {
+  const raw = process.env.TOKEI_PYTHON_ARGS;
+  if (!raw || !raw.trim()) return [];
+  return raw.split(" ").filter((v) => v.trim());
 }
 
 function resolveHashiStatsPath(cfg) {
@@ -169,7 +181,9 @@ function askYesNo(prompt) {
 
 async function renderHtmlAndPng({ statsJsonPath, htmlOutPath, pngOutPath }) {
   const pyRenderer = path.join(appRoot, "src", "tokei", "render_dashboard_html.py");
-  const r = run("python", [pyRenderer, statsJsonPath, htmlOutPath], { cwd: appRoot });
+  const pyCmd = getPythonCommand();
+  const pyArgs = [...getPythonArgsPrefix(), pyRenderer, statsJsonPath, htmlOutPath];
+  const r = run(pyCmd, pyArgs, { cwd: appRoot });
   if (r.error) throw r.error;
   if (r.status !== 0) {
     const err = (r.stderr || "").trim();
@@ -196,11 +210,11 @@ async function main() {
 
   const overwriteToday = process.argv.includes("--overwrite-today");
   const cfg = loadConfig();
-  const cacheDir = path.join(__dirname, "cache");
+  const cacheDir = path.join(userRoot, "cache");
   const outputDirCfg = typeof cfg.output_dir === "string" ? cfg.output_dir.trim() : "";
   const outDir = outputDirCfg
-    ? (path.isAbsolute(outputDirCfg) ? outputDirCfg : path.resolve(appRoot, outputDirCfg))
-    : path.join(appRoot, "output");
+    ? (path.isAbsolute(outputDirCfg) ? outputDirCfg : path.resolve(userRoot, outputDirCfg))
+    : path.join(userRoot, "output");
   ensureDir(cacheDir);
   ensureDir(outDir);
 
@@ -209,7 +223,9 @@ async function main() {
   const syncScript = path.join(__dirname, "tools", "tokei_sync.py");
   const syncArgs = [syncScript];
   if (overwriteToday) syncArgs.push("--overwrite-today");
-  let r = run("python", syncArgs, { cwd: appRoot });
+  const pyCmd = getPythonCommand();
+  const pyArgsPrefix = getPythonArgsPrefix();
+  let r = run(pyCmd, [...pyArgsPrefix, ...syncArgs], { cwd: appRoot });
   if (r.error) throw r.error;
 
   if (r.status === 2 && !overwriteToday) {
@@ -224,7 +240,7 @@ async function main() {
     console.log(`A report has already been generated for today (Report #${reportNo}${generatedAt ? ` at ${generatedAt}` : ""}).`);
     const ok = await askYesNo("Generate a second report for today? (y/N) ");
     if (!ok) return;
-    r = run("python", [syncScript, "--allow-same-day"], { cwd: appRoot });
+    r = run(pyCmd, [...pyArgsPrefix, syncScript, "--allow-same-day"], { cwd: appRoot });
     if (r.error) throw r.error;
   }
 

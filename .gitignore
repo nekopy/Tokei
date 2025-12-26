@@ -3,4 +3,6 @@
 /toggl-token.txt
 /.venv/
 /node_modules/
+/build/
+/dist/
 
