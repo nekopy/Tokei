@@ -6,7 +6,7 @@
   "one_page": true,
   "hashi": {
     "host": "127.0.0.1",
-    "port": 8766,
+    "port": 8765,
     "token": null,
     "refresh_timeout_ms": 10000,
     "require_fresh": true
