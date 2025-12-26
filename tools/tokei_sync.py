@@ -701,6 +701,11 @@ def main(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--allow-same-day", action="store_true")
+    parser.add_argument(
+        "--overwrite-today",
+        action="store_true",
+        help="If a report already exists for today, overwrite that snapshot instead of creating a new one.",
+    )
     args = parser.parse_args(argv[1:])
 
     root = Path(__file__).resolve().parents[1]
@@ -753,7 +758,7 @@ def main(argv: list[str]) -> int:
             """,
             (today.isoformat(),),
         ).fetchone()
-        if prev_today and not args.allow_same_day:
+        if prev_today and not args.allow_same_day and not args.overwrite_today:
             payload = {
                 "status": "already_generated",
                 "report_no": int(prev_today[0]),
@@ -809,15 +814,30 @@ def main(argv: list[str]) -> int:
         gsm_chars_total = _read_gsm_chars(cfg, warnings=warnings)
         anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
 
-        prev = con.execute(
-            """
-            SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
-                   anki_total_reviews, anki_true_retention
-            FROM snapshots
-            ORDER BY run_id DESC
-            LIMIT 1
-            """
-        ).fetchone()
+        # For deltas, compare against the previous report before the one we are generating.
+        # If overwriting today's report, exclude that row itself.
+        if args.overwrite_today and prev_today:
+            prev = con.execute(
+                """
+                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
+                       anki_total_reviews, anki_true_retention
+                FROM snapshots
+                WHERE run_id < ?
+                ORDER BY run_id DESC
+                LIMIT 1
+                """,
+                (int(prev_today[0]),),
+            ).fetchone()
+        else:
+            prev = con.execute(
+                """
+                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
+                       anki_total_reviews, anki_true_retention
+                FROM snapshots
+                ORDER BY run_id DESC
+                LIMIT 1
+                """
+            ).fetchone()
 
         prev_lifetime = int(prev[0]) if prev else lifetime_seconds
         prev_known_lemmas = int(prev[1]) if prev else known_lemmas
@@ -841,35 +861,77 @@ def main(argv: list[str]) -> int:
             con, tz=tz, today=today, today_seconds=today_seconds, avg_window_days=7
         )
 
-        cur = con.execute(
-            """
-            INSERT INTO snapshots(
-              generated_at, report_day, timezone, theme,
-              toggl_lifetime_seconds, toggl_today_seconds, toggl_today_breakdown_json,
-              known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
-              anki_total_reviews, anki_reviews, anki_true_retention, warnings_json
+        if args.overwrite_today and prev_today:
+            run_id = int(prev_today[0])
+            con.execute(
+                """
+                UPDATE snapshots
+                SET generated_at=?,
+                    report_day=?,
+                    timezone=?,
+                    theme=?,
+                    toggl_lifetime_seconds=?,
+                    toggl_today_seconds=?,
+                    toggl_today_breakdown_json=?,
+                    known_lemmas=?,
+                    known_inflections=?,
+                    manga_chars_total=?,
+                    gsm_chars_total=?,
+                    anki_total_reviews=?,
+                    anki_reviews=?,
+                    anki_true_retention=?,
+                    warnings_json=?
+                WHERE run_id=?
+                """,
+                (
+                    now.isoformat(),
+                    today.isoformat(),
+                    cfg.timezone,
+                    cfg.theme,
+                    int(lifetime_seconds),
+                    int(today_seconds),
+                    json.dumps(today_breakdown, ensure_ascii=False),
+                    int(known_lemmas),
+                    int(known_inflections),
+                    int(manga_chars_total),
+                    int(gsm_chars_total),
+                    int(anki_total),
+                    int(anki_reviews),
+                    float(anki_true_retention),
+                    json.dumps(warnings, ensure_ascii=False),
+                    run_id,
+                ),
             )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                now.isoformat(),
-                today.isoformat(),
-                cfg.timezone,
-                cfg.theme,
-                int(lifetime_seconds),
-                int(today_seconds),
-                json.dumps(today_breakdown, ensure_ascii=False),
-                int(known_lemmas),
-                int(known_inflections),
-                int(manga_chars_total),
-                int(gsm_chars_total),
-                int(anki_total),
-                int(anki_reviews),
-                float(anki_true_retention),
-                json.dumps(warnings, ensure_ascii=False),
-            ),
-        )
-        run_id = int(cur.lastrowid)
+        else:
+            cur = con.execute(
+                """
+                INSERT INTO snapshots(
+                  generated_at, report_day, timezone, theme,
+                  toggl_lifetime_seconds, toggl_today_seconds, toggl_today_breakdown_json,
+                  known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
+                  anki_total_reviews, anki_reviews, anki_true_retention, warnings_json
+                )
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    now.isoformat(),
+                    today.isoformat(),
+                    cfg.timezone,
+                    cfg.theme,
+                    int(lifetime_seconds),
+                    int(today_seconds),
+                    json.dumps(today_breakdown, ensure_ascii=False),
+                    int(known_lemmas),
+                    int(known_inflections),
+                    int(manga_chars_total),
+                    int(gsm_chars_total),
+                    int(anki_total),
+                    int(anki_reviews),
+                    float(anki_true_retention),
+                    json.dumps(warnings, ensure_ascii=False),
+                ),
+            )
+            run_id = int(cur.lastrowid)
         con.commit()
 
         model = _build_report_model(

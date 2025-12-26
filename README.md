@@ -33,6 +33,9 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
   - Runs the application
   - Does not perform setup or installation
   - Safe to run multiple times
+- Refresh-Today-Report.bat
+  - Runs the app but overwrites today's existing report (no extra report number)
+  - Safe to run multiple times (asks for confirmation)
 - Tokei.bat
   - Legacy wrapper that calls run.bat
 - Reset-Tokei.bat

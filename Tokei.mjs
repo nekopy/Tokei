@@ -20,6 +20,10 @@ function loadConfig() {
   }
 }
 
+function getConfigPath() {
+  return path.join(__dirname, "config.json");
+}
+
 function resolveHashiStatsPath(cfg) {
   const appdata = process.env.APPDATA;
   if (!appdata) return null;
@@ -186,6 +190,11 @@ async function renderHtmlAndPng({ statsJsonPath, htmlOutPath, pngOutPath }) {
 }
 
 async function main() {
+  if (!fs.existsSync(getConfigPath())) {
+    throw new Error('config.json not found. Run "Setup-Tokei.bat" first.');
+  }
+
+  const overwriteToday = process.argv.includes("--overwrite-today");
   const cfg = loadConfig();
   const cacheDir = path.join(__dirname, "cache");
   const outputDirCfg = typeof cfg.output_dir === "string" ? cfg.output_dir.trim() : "";
@@ -198,10 +207,12 @@ async function main() {
   await refreshHashiExport(cfg);
 
   const syncScript = path.join(__dirname, "tools", "tokei_sync.py");
-  let r = run("python", [syncScript], { cwd: appRoot });
+  const syncArgs = [syncScript];
+  if (overwriteToday) syncArgs.push("--overwrite-today");
+  let r = run("python", syncArgs, { cwd: appRoot });
   if (r.error) throw r.error;
 
-  if (r.status === 2) {
+  if (r.status === 2 && !overwriteToday) {
     let info = null;
     try {
       info = JSON.parse((r.stdout || "").trim());
