@@ -6,5 +6,7 @@
 /build/
 /dist/
 /dist-installer/
-
 /CHATGPT_CONTEXT.md
+
+# Runtime user config (generated at first run)
+config.json
