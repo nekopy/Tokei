@@ -36,6 +36,17 @@ set TOGGL_API_TOKEN=
 run.bat
 ```
 
+### Refresh today (dev mode)
+
+Use this to overwrite today's report in dev/repo mode (uses `--overwrite-today`):
+
+```bat
+cd /d D:\Tokei
+set TOKEI_USER_ROOT=
+set TOKEI_APP_ROOT=
+Refresh-Today-Report.bat
+```
+
 ### PowerShell
 
 ```powershell
