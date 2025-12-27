@@ -44,6 +44,9 @@ def main() -> int:
         return py_mode
 
     app_root, user_root = _roots()
+    env_user_root = os.environ.get("TOKEI_USER_ROOT")
+    if env_user_root and env_user_root.strip():
+        user_root = Path(env_user_root).expanduser().resolve()
     config_path = user_root / "config.json"
     if not config_path.exists():
         print('config.json not found. Run "Setup-Tokei.bat" first.', file=sys.stderr)

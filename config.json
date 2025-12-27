@@ -16,7 +16,7 @@
     "refresh_days_back": 60,
     "refresh_buffer_days": 2,
     "chunk_days": 7,
-    "baseline_hours": 0
+    "baseline_hours": 0.0
   },
   "ankimorphs": {
     "known_interval_days": 21
