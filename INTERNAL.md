@@ -47,6 +47,31 @@ set TOKEI_APP_ROOT=
 Refresh-Today-Report.bat
 ```
 
+## Run the built EXE (from this repo)
+
+The repo build output lives under:
+
+- `D:\Tokei\dist\Tokei\Tokei.exe`
+
+### Portable-style test (uses the EXE folder for config/cache)
+
+This clears the installed `TOKEI_USER_ROOT` (if set) so the EXE behaves portably.
+
+```bat
+cd /d D:\Tokei\dist\Tokei
+set TOKEI_USER_ROOT=
+set TOKEI_APP_ROOT=
+.\Tokei.exe --no-pause
+```
+
+### Installed-style test (uses `%APPDATA%\Tokei`)
+
+```bat
+cd /d D:\Tokei\dist\Tokei
+set TOKEI_USER_ROOT=%APPDATA%\Tokei
+.\Tokei.exe --no-pause
+```
+
 ### PowerShell
 
 ```powershell
@@ -56,4 +81,3 @@ Remove-Item Env:TOKEI_APP_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:TOGGL_API_TOKEN -ErrorAction SilentlyContinue
 .\run.bat
 ```
-
