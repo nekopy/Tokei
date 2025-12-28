@@ -2,6 +2,8 @@
 
 Tokei is currently in alpha. This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
 
+Note: Tokei currently runs as a console app (CLI). A UI is planned.
+
 # Tokei (dashboard sync)
 
 Tokei is a standalone sync + report generator that combines:
