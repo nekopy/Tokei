@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import base64
+import csv
+import hashlib
 import json
 import os
+import re
 import sqlite3
+import subprocess
 import sys
+import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -36,6 +41,7 @@ class Config:
     ankimorphs_known_interval_days: int
     mokuro_volume_data_path: str
     gsm_db_path: str
+    phase2_csv_rule_id: str
 
 
 class TogglMinStartDateError(RuntimeError):
@@ -44,6 +50,329 @@ class TogglMinStartDateError(RuntimeError):
         self.min_day = min_day
 
 
+_SPACY_NLP: Any | None = None
+
+
+def _normalize_surface_for_identity(surface: str) -> str:
+    s = str(surface or "").strip()
+    s = unicodedata.normalize("NFC", s)
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def _content_key_for_lexeme(normalized_surface: str, rule_id: str) -> str:
+    rid = str(rule_id or "").strip()
+    if not rid:
+        raise ValueError("rule_id must be non-empty")
+    src = f"{normalized_surface}::{rid}"
+    return hashlib.sha256(src.encode("utf-8")).hexdigest()
+
+
+def _load_spacy_ja_model() -> Any | None:
+    global _SPACY_NLP
+    if _SPACY_NLP is not None:
+        return _SPACY_NLP
+    # spaCy's dependency stack is not currently compatible with Python 3.14+.
+    if sys.version_info >= (3, 14):
+        return None
+    try:
+        import spacy  # type: ignore
+    except Exception:
+        return None
+    try:
+        _SPACY_NLP = spacy.load("ja_core_news_md")
+    except Exception:
+        _SPACY_NLP = None
+    return _SPACY_NLP
+
+
+def _spacy_lemma_for_surface(nlp: Any, surface: str) -> str:
+    doc = nlp(surface)
+    for tok in doc:
+        if (
+            getattr(tok, "is_space", False)
+            or getattr(tok, "is_punct", False)
+            or getattr(tok, "is_stop", False)
+        ):
+            continue
+        lemma = str(getattr(tok, "lemma_", "") or "").strip()
+        lemma = unicodedata.normalize("NFC", lemma)
+        if lemma:
+            return lemma
+        break
+    # Deterministic fallback for empty/degenerate cases.
+    return _normalize_surface_for_identity(surface)
+
+
+def _ensure_words_schema(con: sqlite3.Connection) -> None:
+    con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lexemes (
+          id INTEGER PRIMARY KEY,
+          content_key TEXT UNIQUE NOT NULL,
+          surface TEXT NOT NULL,
+          normalized_surface TEXT NOT NULL,
+          rule_id TEXT NOT NULL,
+          first_seen DATE NOT NULL,
+          last_seen DATE NOT NULL
+        )
+        """
+    )
+    con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lemmas (
+          id INTEGER PRIMARY KEY,
+          lemma TEXT NOT NULL,
+          reading TEXT,
+          rule_id TEXT NOT NULL,
+          UNIQUE (lemma, rule_id)
+        )
+        """
+    )
+    con.execute(
+        """
+        CREATE TABLE IF NOT EXISTS lexeme_lemmas (
+          lexeme_id INTEGER NOT NULL,
+          lemma_id INTEGER NOT NULL,
+          PRIMARY KEY (lexeme_id, lemma_id)
+        )
+        """
+    )
+
+
+def _upsert_lexeme(
+    con: sqlite3.Connection,
+    *,
+    content_key: str,
+    surface: str,
+    normalized_surface: str,
+    rule_id: str,
+    first_seen: str,
+    last_seen: str,
+) -> None:
+    con.execute(
+        """
+        INSERT INTO lexemes(content_key, surface, normalized_surface, rule_id, first_seen, last_seen)
+        VALUES(?, ?, ?, ?, ?, ?)
+        ON CONFLICT(content_key) DO UPDATE SET
+          first_seen = CASE WHEN lexemes.first_seen < excluded.first_seen THEN lexemes.first_seen ELSE excluded.first_seen END,
+          last_seen = CASE WHEN lexemes.last_seen > excluded.last_seen THEN lexemes.last_seen ELSE excluded.last_seen END
+        """,
+        (content_key, surface, normalized_surface, rule_id, first_seen, last_seen),
+    )
+
+
+def _resolve_hashi_known_words_db(cfg: Config) -> Path | None:
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        return None
+
+    output_dir = "hashi_exports"
+    rules_path = Path(appdata) / "Anki2" / "addons21" / "Hashi" / "rules.json"
+    if rules_path.exists():
+        try:
+            parsed = json.loads(rules_path.read_text(encoding="utf-8"))
+            settings = parsed.get("settings") if isinstance(parsed, dict) else None
+            if isinstance(settings, dict):
+                od = settings.get("output_dir")
+                if isinstance(od, str) and od.strip():
+                    output_dir = od.strip()
+        except Exception:
+            pass
+
+    base = Path(output_dir)
+    if not base.is_absolute():
+        base = Path(appdata) / "Anki2" / cfg.anki_profile / output_dir
+    db_path = base / "known_words.sqlite"
+    return db_path if db_path.exists() else None
+
+
+def _phase2_import_hashi_lexemes(
+    con: sqlite3.Connection,
+    *,
+    cfg: Config,
+    today: date,
+) -> int:
+    src_db = _resolve_hashi_known_words_db(cfg)
+    if src_db is None:
+        return 0
+
+    imported = 0
+    src_con = sqlite3.connect(f"file:{src_db}?mode=ro", uri=True)
+    try:
+        rows = src_con.execute(
+            "SELECT content_key, surface, normalized_surface, rule_id, first_seen, last_seen FROM lexemes"
+        ).fetchall()
+        for content_key, surface, normalized_surface, rule_id, first_seen, last_seen in rows:
+            _upsert_lexeme(
+                con,
+                content_key=str(content_key),
+                surface=str(surface),
+                normalized_surface=str(normalized_surface),
+                rule_id=str(rule_id),
+                first_seen=str(first_seen or today.isoformat()),
+                last_seen=str(last_seen or today.isoformat()),
+            )
+            imported += 1
+    finally:
+        src_con.close()
+    return imported
+
+
+def _phase2_ingest_known_csv(
+    con: sqlite3.Connection,
+    *,
+    root: Path,
+    today: date,
+    rule_id: str,
+) -> int:
+    csv_candidates = [
+        root / "data" / "known.csv",
+        root / "data" / "csv" / "known.csv",
+        root / "known.csv",
+    ]
+    csv_path: Path | None = None
+    for p in csv_candidates:
+        if p.exists():
+            csv_path = p
+            break
+    if csv_path is None:
+        return 0
+
+    inserted = 0
+    try:
+        with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+    except Exception:
+        return 0
+
+    start_idx = 0
+    if rows:
+        first_raw = rows[0][0] if rows[0] else ""
+        first = _normalize_surface_for_identity(first_raw)
+        first_lc = first.lower()
+        header_words = {"word", "words", "surface", "expression", "lexeme", "lemma", "lemmas"}
+        if first_lc in header_words or (
+            re.search(r"[a-z]", first_lc)
+            and any(k in first_lc for k in ("word", "surface", "expression", "lexeme", "lemma", "morph"))
+        ):
+            start_idx = 1
+            header_surface = first
+            if header_surface:
+                try:
+                    header_key = _content_key_for_lexeme(header_surface, rule_id)
+                    row = con.execute(
+                        "SELECT id FROM lexemes WHERE content_key=? LIMIT 1", (header_key,)
+                    ).fetchone()
+                    if row:
+                        lexeme_id = int(row[0])
+                        con.execute("DELETE FROM lexeme_lemmas WHERE lexeme_id=?", (lexeme_id,))
+                        con.execute("DELETE FROM lexemes WHERE id=?", (lexeme_id,))
+                except Exception:
+                    pass
+
+    day_s = today.isoformat()
+    for row in rows[start_idx:]:
+        surface_raw = row[0] if row else ""
+        surface = _normalize_surface_for_identity(surface_raw)
+        if not surface:
+            continue
+        key = _content_key_for_lexeme(surface, rule_id)
+        _upsert_lexeme(
+            con,
+            content_key=key,
+            surface=surface,
+            normalized_surface=surface,
+            rule_id=rule_id,
+            first_seen=day_s,
+            last_seen=day_s,
+        )
+        inserted += 1
+
+    return inserted
+
+
+def _phase2_build_lemmas(
+    con: sqlite3.Connection,
+    *,
+    rebuild: bool,
+) -> int:
+    if rebuild:
+        con.execute("DELETE FROM lexeme_lemmas;")
+        con.execute("DELETE FROM lemmas;")
+
+    nlp = _load_spacy_ja_model()
+    if nlp is None:
+        return 0
+
+    if rebuild:
+        lexeme_rows = con.execute("SELECT id, surface, rule_id FROM lexemes ORDER BY id").fetchall()
+    else:
+        lexeme_rows = con.execute(
+            """
+            SELECT l.id, l.surface, l.rule_id
+            FROM lexemes l
+            LEFT JOIN lexeme_lemmas ll ON ll.lexeme_id = l.id
+            WHERE ll.lexeme_id IS NULL
+            ORDER BY l.id
+            """
+        ).fetchall()
+
+    linked = 0
+    for lexeme_id, surface, rule_id in lexeme_rows:
+        lemma = _spacy_lemma_for_surface(nlp, str(surface))
+        lemma = _normalize_surface_for_identity(lemma)
+        rid = str(rule_id)
+        con.execute(
+            "INSERT OR IGNORE INTO lemmas(lemma, reading, rule_id) VALUES(?, ?, ?)",
+            (lemma, None, rid),
+        )
+        lemma_id = con.execute(
+            "SELECT id FROM lemmas WHERE lemma=? AND rule_id=?",
+            (lemma, rid),
+        ).fetchone()[0]
+        con.execute(
+            "INSERT OR IGNORE INTO lexeme_lemmas(lexeme_id, lemma_id) VALUES(?, ?)",
+            (int(lexeme_id), int(lemma_id)),
+        )
+        linked += 1
+
+    return linked
+
+
+def _run_external_lemma_builder(root: Path, words_db_path: Path, rebuild: bool) -> bool:
+    exe = os.environ.get("TOKEI_PHASE2_PYTHON_EXE")
+    if exe and exe.strip():
+        py = exe.strip()
+    else:
+        candidates = [
+            root / ".venv-lemmas" / "Scripts" / "python.exe",
+            Path(__file__).resolve().parents[1] / ".venv-lemmas" / "Scripts" / "python.exe",
+        ]
+        py = ""
+        for c in candidates:
+            if c.exists():
+                py = str(c)
+                break
+
+    if not py:
+        return False
+
+    script = Path(__file__).resolve().with_name("tokei_phase2_lemmas.py")
+    if not script.exists():
+        return False
+
+    cmd = [py, str(script), str(words_db_path)]
+    if rebuild:
+        cmd.append("--rebuild")
+    r = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True)
+    if r.returncode != 0:
+        err = (r.stderr or "").strip()
+        msg = err or (r.stdout or "").strip() or "unknown error"
+        print(f"Phase 2 external lemma builder failed: {msg}", file=sys.stderr)
+        return False
+    return True
 def _load_config(path: Path) -> Config:
     raw = json.loads(path.read_text(encoding="utf-8"))
     tz = str(raw.get("timezone") or "America/Los_Angeles")
@@ -72,6 +401,9 @@ def _load_config(path: Path) -> Config:
     gsm = raw.get("gsm") or {}
     gsm_db_path = str(gsm.get("db_path") or "auto")
 
+    phase2 = raw.get("phase2") or {}
+    phase2_csv_rule_id = str(phase2.get("csv_rule_id") or "default").strip() or "default"
+
     return Config(
         anki_profile=anki_profile,
         timezone=tz,
@@ -85,6 +417,7 @@ def _load_config(path: Path) -> Config:
         ankimorphs_known_interval_days=known_interval,
         mokuro_volume_data_path=mokuro_volume_data_path,
         gsm_db_path=gsm_db_path,
+        phase2_csv_rule_id=phase2_csv_rule_id,
     )
 
 
@@ -708,6 +1041,16 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="If a report already exists for today, overwrite that snapshot instead of creating a new one.",
     )
+    parser.add_argument(
+        "--rebuild-lemmas",
+        action="store_true",
+        help="Clear derived lemma tables and rebuild them from lexeme surfaces.",
+    )
+    parser.add_argument(
+        "--phase2-only",
+        action="store_true",
+        help="Run Phase 2 (lexemes/lemmas/CSV) only and exit without generating a report.",
+    )
     args = parser.parse_args(argv[1:])
 
     env_root = os.environ.get("TOKEI_USER_ROOT")
@@ -719,7 +1062,6 @@ def main(argv: list[str]) -> int:
     out_stats_path = cache_dir / "latest_stats.json"
 
     cfg = _load_config(config_path)
-    api_token = _get_api_token(root)
 
     local_tz = datetime.now().astimezone().tzinfo
     if local_tz is None:
@@ -738,6 +1080,52 @@ def main(argv: list[str]) -> int:
                 # Common on Windows when the Python install doesn't have IANA tzdata.
                 # Fall back to local timezone so Tokei works out-of-the-box.
                 tz = local_tz
+
+    # Phase 2: derived lemma system (idempotent, does not affect report JSON behavior).
+    try:
+        today_for_phase2 = datetime.now(tz).date()
+        words_db_path = cache_dir / "tokei_words.sqlite"
+        words_con = sqlite3.connect(str(words_db_path))
+        try:
+            words_con.execute("PRAGMA journal_mode=DELETE;")
+            words_con.execute("PRAGMA synchronous=NORMAL;")
+            _ensure_words_schema(words_con)
+            _phase2_import_hashi_lexemes(words_con, cfg=cfg, today=today_for_phase2)
+            _phase2_ingest_known_csv(
+                words_con,
+                root=root,
+                today=today_for_phase2,
+                rule_id=cfg.phase2_csv_rule_id,
+            )
+
+            missing_lemmas = int(
+                words_con.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM lexemes l
+                    LEFT JOIN lexeme_lemmas ll ON ll.lexeme_id = l.id
+                    WHERE ll.lexeme_id IS NULL
+                    """
+                ).fetchone()[0]
+                or 0
+            )
+            if args.rebuild_lemmas or missing_lemmas:
+                linked = _phase2_build_lemmas(words_con, rebuild=bool(args.rebuild_lemmas))
+                if linked == 0 and (args.rebuild_lemmas or missing_lemmas):
+                    words_con.commit()
+                    _run_external_lemma_builder(
+                        root, words_db_path=words_db_path, rebuild=bool(args.rebuild_lemmas)
+                    )
+            words_con.commit()
+        finally:
+            words_con.close()
+    except Exception as e:
+        print(f"Phase 2 skipped due to error: {type(e).__name__}", file=sys.stderr)
+
+    if args.phase2_only:
+        return 0
+
+    api_token = _get_api_token(root)
 
     # Ensure token works and /me is reachable (user requested /me usage).
     _fetch_json("https://api.track.toggl.com/api/v9/me", api_token)

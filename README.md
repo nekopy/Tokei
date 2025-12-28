@@ -19,6 +19,7 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 - Setup-Environment.bat
   - Creates the local Python venv in .venv
   - Installs Python dependencies from requirements.txt
+  - Optional: creates `.venv-lemmas` (Python 3.13) for Phase 2 spaCy lemmas
   - Installs Node dependencies (npm install)
   - Verifies Node.js 18+ and Puppeteer are available
   - Safe to run multiple times
@@ -48,6 +49,9 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 - `config.json` is the live config used by Tokei.
 - `config.example.json` is documentation only (not loaded at runtime).
 - Field types are implied by the example values; keep the same types when editing `config.json`.
+- Phase 2:
+  - Optional CSV ingest: `data/known.csv` (first column only; header allowed). Also accepts `data/csv/known.csv` and `known.csv` for compatibility.
+  - Optional config: `phase2.csv_rule_id` (defaults to `default`).
 
 Troubleshooting:
 

@@ -26,5 +26,8 @@
   },
   "gsm": {
     "db_path": "auto"
+  },
+  "phase2": {
+    "csv_rule_id": "default"
   }
 }

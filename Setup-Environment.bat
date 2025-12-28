@@ -56,6 +56,60 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if exist "requirements-lemmas.txt" (
+  echo.
+  echo === Optional: Phase 2 lemma environment (spaCy) ===
+  echo This is needed to build spaCy lemmas on Python 3.14 installs.
+  echo.
+
+  set "LEMMA_PY="
+  where py >nul 2>&1
+  if not errorlevel 1 (
+    py -3.13 -c "import sys; raise SystemExit(0 if sys.version_info[:2]==(3,13) else 1)" >nul 2>&1
+    if not errorlevel 1 (
+      set "LEMMA_PY=py -3.13"
+    )
+  )
+
+  if "%LEMMA_PY%"=="" (
+    if exist "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" (
+      set "LEMMA_PY=%LOCALAPPDATA%\Programs\Python\Python313\python.exe"
+    )
+  )
+
+  if "%LEMMA_PY%"=="" (
+    echo WARN: Python 3.13 not found; skipping spaCy lemma environment setup.
+    echo       Install Python 3.13 and re-run Setup-Environment.bat to enable Phase 2.
+    goto :AFTER_LEMMA_SETUP
+  )
+
+  if not exist ".venv-lemmas\Scripts\python.exe" (
+    echo Creating lemma venv at .venv-lemmas\
+    %LEMMA_PY% -m venv ".venv-lemmas"
+    if errorlevel 1 (
+      echo WARN: Failed to create .venv-lemmas\. Skipping spaCy lemma environment setup.
+      goto :AFTER_LEMMA_SETUP
+    )
+  ) else (
+    echo Found existing lemma venv at .venv-lemmas\
+  )
+
+  echo Installing spaCy dependencies...
+  .venv-lemmas\Scripts\python.exe -m pip install -r requirements-lemmas.txt
+  if errorlevel 1 (
+    echo WARN: Failed to install spaCy dependencies. Skipping model download.
+    goto :AFTER_LEMMA_SETUP
+  )
+
+  echo Installing spaCy model: ja_core_news_md
+  .venv-lemmas\Scripts\python.exe -m spacy download ja_core_news_md
+  if errorlevel 1 (
+    echo WARN: Failed to install ja_core_news_md. Phase 2 lemma generation will be skipped.
+  )
+
+  :AFTER_LEMMA_SETUP
+)
+
 echo.
 echo Checking Node.js...
 where node >nul 2>&1

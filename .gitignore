@@ -2,6 +2,7 @@
 /output/
 /toggl-token.txt
 /.venv/
+/.venv-lemmas/
 /node_modules/
 /build/
 /dist/
