@@ -1,4 +1,4 @@
-// Tokei.mjs - APL-independent dashboard sync + HTML/PNG report generator.
+// Tokei.mjs - dashboard sync + HTML/PNG report generator.
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

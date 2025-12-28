@@ -1088,7 +1088,7 @@ def _compute_immersion_windows(
         cursor += timedelta(days=1)
 
     # Average immersion based on the most recent avg_window_days (calendar days),
-    # excluding zero days (matches APL "nonzero average" feel).
+    # excluding zero days (nonzero-day average).
     avg_window_days = max(1, int(avg_window_days))
     recent_start = today - timedelta(days=avg_window_days - 1)
     prev_start = recent_start - timedelta(days=avg_window_days)

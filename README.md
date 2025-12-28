@@ -1,4 +1,4 @@
-# Tokei (APL-independent dashboard sync)
+# Tokei (dashboard sync)
 
 Tokei is a standalone sync + report generator that combines:
 
