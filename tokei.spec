@@ -5,9 +5,24 @@ from pathlib import Path
 
 project_root = Path(globals().get("__file__", os.path.abspath("tokei.spec"))).resolve().parent
 
+
+def _collect_datas(src_dir: Path, dest_root: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for root, dirs, files in os.walk(src_dir):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for f in files:
+            if f.endswith((".pyc", ".pyo")):
+                continue
+            src = Path(root) / f
+            rel_parent = src.relative_to(src_dir).parent
+            dest = str(Path(dest_root) / rel_parent) if str(rel_parent) != "." else dest_root
+            out.append((str(src), dest))
+    return out
+
+
 datas = [
     (str(project_root / "Tokei.mjs"), "."),
-    (str(project_root / "tools"), "tools"),
+    *_collect_datas(project_root / "tools", "tools"),
     (str(project_root / "src"), "src"),
     (str(project_root / "design"), "design"),
     (str(project_root / "config.example.json"), "."),
@@ -47,6 +62,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="Tokei",
+    icon=str(project_root / "assets" / "tokei.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

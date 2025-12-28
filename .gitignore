@@ -8,6 +8,8 @@
 /dist/
 /dist-installer/
 /CHATGPT_CONTEXT.md
+**/__pycache__/
+*.py[cod]
 
 # Runtime user config (generated at first run)
 config.json

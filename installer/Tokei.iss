@@ -16,6 +16,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist-installer
 OutputBaseFilename=Tokei-Setup-{#MyAppVersion}
+SetupIconFile=..\assets\tokei.ico
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -29,14 +30,16 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; Flags: unchecked
 
 [Files]
 Source: "..\dist\Tokei\*"; DestDir: "{app}"; Excludes: "node_modules\*,config.json,toggl-token.txt"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\tokei.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\assets\tokei-shortcut.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{userappdata}\Tokei"; Flags: uninsneveruninstall
 Name: "{%USERPROFILE}\Pictures\Tokei"; Flags: uninsneveruninstall
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\tokei-shortcut.ico"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\tokei-shortcut.ico"
 
 [Registry]
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "TOKEI_USER_ROOT"; ValueData: "{userappdata}\Tokei"; Flags: uninsdeletevalue preservestringtype
