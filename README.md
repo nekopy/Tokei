@@ -2,13 +2,11 @@
 
 Tokei is currently in alpha. This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
 
-
 # Tokei (dashboard sync)
 
 Tokei is a standalone sync + report generator that combines:
 
 - Toggl (API token) for lifetime + today immersion (with description breakdown)
-- AnkiMorphs (ankimorphs.db) for known lemma/inflection counts
 - Hashi (hashi_exports/anki_stats_snapshot.json) for Anki retention + review totals
 - Mokuro (volume-data.json) for manga characters read
 - GameSentenceMiner (gsm.db) for GSM characters read
@@ -19,12 +17,41 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 - PNG:  output/Tokei Report <report_no>.png
 - Warnings: output/Tokei Report <report_no> WARNINGS.txt (only if warnings exist)
 
+## Recommended first-time setup
+
+### Quick start (most users)
+
+1) Install Node.js 18+
+2) Run Tokei from the Start Menu shortcut
+
+Tokei will generate HTML reports by default. PNG reports require additional setup (see below).
+
+### PNG output (required for PNG reports)
+
+PNG reports are rendered using Puppeteer via Node.js.
+
+To enable PNG output:
+
+1) Install Node.js 18+
+2) Open a terminal in the Tokei directory
+   (for example: `C:\Program Files\Tokei\`)
+3) Run:
+
+    npm install puppeteer
+
+Tokei expects Puppeteer to be available at:
+
+    <Tokei directory>\node_modules\puppeteer
+
+If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG output will fail with a warning.
+
+This explicit setup is intentional for the alpha release to maximize PNG reliability.
+
 ## Scripts (Windows)
 
 - Setup-Environment.bat
   - Creates the local Python venv in .venv
   - Installs Python dependencies from requirements.txt
-  - Optional: creates `.venv-lemmas` (Python 3.13) for Phase 2 spaCy lemmas
   - Installs Node dependencies (npm install)
   - Verifies Node.js 18+ and Puppeteer are available
   - Safe to run multiple times
@@ -62,46 +89,12 @@ Troubleshooting:
 
 - Runtime logs + exit code notes: `INTERNAL.md`
 
-## Recommended first-time setup
-
-### Quick start (most users)
-
-1) Install Node.js 18+
-2) Run Tokei from the Start Menu shortcut
-
-Tokei will generate HTML reports by default. PNG reports require additional setup (see below).
-
-### PNG output (required for PNG reports)
-
-PNG reports are rendered using Puppeteer via Node.js.
-
-To enable PNG output:
-
-1) Install Node.js 18+
-2) Open a terminal in the Tokei directory
-   (for example: `C:\Program Files\Tokei\`)
-3) Run:
-
-    npm install puppeteer
-
-Tokei expects Puppeteer to be available at:
-
-    <Tokei directory>\node_modules\puppeteer
-
-If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG output will fail with a warning.
-
-This explicit setup is intentional for the alpha release to maximize PNG reliability.
-
-
 ## External data sources (read-only)
 
 Tokei reads from these external tools but does not modify them:
 
 - Hashi (Anki add-on)
   - Reads hashi_exports/anki_stats_snapshot.json from your Anki profile
-  - If missing, Tokei warns and continues
-- AnkiMorphs (Anki add-on)
-  - Reads ankimorphs.db from your Anki profile
   - If missing, Tokei warns and continues
 - GSM (Game Sentence Miner)
   - Reads gsm.db (auto path uses %APPDATA%\GameSentenceMiner\gsm.db)

@@ -100,7 +100,7 @@ begin
         '{' + #13#10 +
         '  "anki_profile": "User 1",' + #13#10 +
         '  "timezone": "local",' + #13#10 +
-        '  "theme": "midnight",' + #13#10 +
+        '  "theme": "dark-graphite",' + #13#10 +
         '  "output_dir": "' + ReportsDirEsc + '",' + #13#10 +
         '  "one_page": true,' + #13#10 +
         '  "hashi": {' + #13#10 +
@@ -117,7 +117,6 @@ begin
         '    "chunk_days": 7,' + #13#10 +
         '    "baseline_hours": 0' + #13#10 +
         '  },' + #13#10 +
-        '  "ankimorphs": { "known_interval_days": 21 },' + #13#10 +
         '  "mokuro": { "volume_data_path": "" },' + #13#10 +
         '  "gsm": { "db_path": "auto" }' + #13#10 +
         '}' + #13#10;

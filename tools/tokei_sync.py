@@ -38,7 +38,6 @@ class Config:
     toggl_refresh_buffer_days: int
     toggl_chunk_days: int
     toggl_baseline_seconds: int
-    ankimorphs_known_interval_days: int
     mokuro_volume_data_path: str
     gsm_db_path: str
     phase2_csv_rule_id: str
@@ -441,7 +440,7 @@ def _run_external_lemma_builder(root: Path, words_db_path: Path, rebuild: bool) 
 def _load_config(path: Path) -> Config:
     raw = json.loads(path.read_text(encoding="utf-8"))
     tz = str(raw.get("timezone") or "America/Los_Angeles")
-    theme = str(raw.get("theme") or "midnight")
+    theme = str(raw.get("theme") or "dark-graphite")
     one_page = bool(raw.get("one_page", True))
     anki_profile = str(raw.get("anki_profile") or "User 1")
 
@@ -456,9 +455,6 @@ def _load_config(path: Path) -> Config:
     chunk_days = int(toggl.get("chunk_days") or 7)
     baseline_hours = float(toggl.get("baseline_hours") or 0)
     baseline_seconds = int(round(baseline_hours * 3600.0))
-
-    ankimorphs = raw.get("ankimorphs") or {}
-    known_interval = int(ankimorphs.get("known_interval_days") or 21)
 
     mokuro = raw.get("mokuro") or {}
     mokuro_volume_data_path = str(mokuro.get("volume_data_path") or "")
@@ -479,7 +475,6 @@ def _load_config(path: Path) -> Config:
         toggl_refresh_buffer_days=refresh_buffer_days,
         toggl_chunk_days=chunk_days,
         toggl_baseline_seconds=baseline_seconds,
-        ankimorphs_known_interval_days=known_interval,
         mokuro_volume_data_path=mokuro_volume_data_path,
         gsm_db_path=gsm_db_path,
         phase2_csv_rule_id=phase2_csv_rule_id,
@@ -859,45 +854,6 @@ def _read_hashi_stats(cfg: Config, warnings: list[str] | None = None) -> tuple[i
     return cards_studied, reviews, true_retention
 
 
-def _read_ankimorphs_known_counts(cfg: Config, warnings: list[str] | None = None) -> tuple[int, int]:
-    appdata = os.environ.get("APPDATA")
-    if not appdata:
-        if warnings is not None:
-            warnings.append("Could not read AnkiMorphs counts: APPDATA is not set.")
-        return 0, 0
-    db_path = Path(appdata) / "Anki2" / cfg.anki_profile / "ankimorphs.db"
-    if not db_path.exists():
-        if warnings is not None:
-            warnings.append(f"AnkiMorphs DB not found: {db_path}.")
-        return 0, 0
-    interval = int(cfg.ankimorphs_known_interval_days)
-    con = sqlite3.connect(str(db_path))
-    try:
-        known_lemmas = con.execute(
-            """
-            SELECT COUNT(DISTINCT lemma)
-            FROM Morphs
-            WHERE highest_inflection_learning_interval >= ?
-            """,
-            (interval,),
-        ).fetchone()[0]
-        known_inflections = con.execute(
-            """
-            SELECT COUNT(*)
-            FROM Morphs
-            WHERE highest_inflection_learning_interval >= ?
-            """,
-            (interval,),
-        ).fetchone()[0]
-        return int(known_lemmas or 0), int(known_inflections or 0)
-    except sqlite3.Error as e:
-        if warnings is not None:
-            warnings.append(f"Failed to query AnkiMorphs DB: {db_path} ({type(e).__name__}).")
-        return 0, 0
-    finally:
-        con.close()
-
-
 def _read_mokuro_manga_chars(cfg: Config, warnings: list[str] | None = None) -> int:
     p = cfg.mokuro_volume_data_path.strip()
     if not p:
@@ -1021,6 +977,8 @@ def _build_report_model(
         "total_immersion_delta_hours": total_immersion_delta_hours,
         "known_words": int(tokei_surface_words),
         "known_words_delta": known_words_delta,
+        "known_lemmas": int(known_lemmas),
+        "known_lemmas_delta": int(known_words_delta),
         "known_inflections": known_inflections,
         "known_inflections_delta": known_inflections_delta,
         "tokei_surface_words": int(tokei_surface_words),
@@ -1283,8 +1241,9 @@ def main(argv: list[str]) -> int:
         ]
 
         warnings: list[str] = []
-        known_lemmas, known_inflections = _read_ankimorphs_known_counts(cfg, warnings=warnings)
         tokei_surface_words = _read_tokei_surface_words(root)
+        known_lemmas = int(tokei_surface_words)
+        known_inflections = int(tokei_surface_words)
         manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
         gsm_chars_total = _read_gsm_chars(cfg, warnings=warnings)
         anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)

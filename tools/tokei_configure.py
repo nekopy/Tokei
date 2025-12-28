@@ -53,10 +53,9 @@ def main(argv: list[str]) -> int:
 
     data.setdefault("anki_profile", "User 1")
     data.setdefault("timezone", "local")
-    data.setdefault("theme", "midnight")
+    data.setdefault("theme", "dark-graphite")
     data.setdefault("one_page", True)
     data.setdefault("toggl", {})
-    data.setdefault("ankimorphs", {})
 
     if args.anki_profile:
         data["anki_profile"] = str(args.anki_profile)

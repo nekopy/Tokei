@@ -22,7 +22,7 @@ echo.
 
 REM Read existing config as defaults so Enter keeps your current settings.
 set "DEFAULT_TIMEZONE=local"
-set "DEFAULT_THEME=midnight"
+set "DEFAULT_THEME=dark-graphite"
 set "DEFAULT_OUTPUT_DIR=output"
 set "DEFAULT_ANKI_PROFILE=User 1"
 set "DEFAULT_BASELINE_HMS=0:00:00"
@@ -105,11 +105,11 @@ if "%TIMEZONE%"=="" set "TIMEZONE=%DEFAULT_TIMEZONE%"
 
 echo.
 echo Theme options:
-echo   midnight (default)
+echo   dark-graphite (default)
+echo   midnight
 echo   sakura-night
 echo   forest-dawn
 echo   neutral-balanced
-echo   dark-graphite
 echo   solar-slate
 echo   neon-arcade
 echo   bright-daylight

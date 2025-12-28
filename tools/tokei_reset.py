@@ -10,7 +10,7 @@ def _default_config() -> dict:
     return {
         "anki_profile": "User 1",
         "timezone": "local",
-        "theme": "midnight",
+        "theme": "dark-graphite",
         "output_dir": "output",
         "one_page": True,
         "hashi": {
@@ -27,7 +27,6 @@ def _default_config() -> dict:
             "chunk_days": 7,
             "baseline_hours": 0,
         },
-        "ankimorphs": {"known_interval_days": 21},
         "mokuro": {"volume_data_path": ""},
         "gsm": {"db_path": "auto"},
     }

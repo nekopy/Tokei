@@ -428,7 +428,6 @@ async function ensureConfigOrSetup() {
       chunk_days: 7,
       baseline_hours: 0,
     },
-    ankimorphs: { known_interval_days: 21 },
     mokuro: { volume_data_path: "" },
     gsm: { db_path: "auto" },
   };
