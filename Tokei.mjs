@@ -12,6 +12,7 @@ const __dirname = path.dirname(__filename);
 const appRoot = process.env.TOKEI_APP_ROOT ? path.resolve(process.env.TOKEI_APP_ROOT) : __dirname;
 const userRoot = process.env.TOKEI_USER_ROOT ? path.resolve(process.env.TOKEI_USER_ROOT) : appRoot;
 const DEFAULT_THEME = "dark-graphite";
+const APP_VERSION = "0.1.0 (alpha)";
 
 function initRuntimeLogPath() {
   try {
@@ -38,10 +39,19 @@ function logRuntime(event, details = "") {
 
 function loadConfig() {
   const configPath = path.join(userRoot, "config.json");
+  if (!fs.existsSync(configPath)) return {};
+
+  let text = "";
   try {
-    const raw = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    text = fs.readFileSync(configPath, "utf8");
+  } catch {
+    return {};
+  }
+  try {
+    const raw = JSON.parse(text);
     return raw && typeof raw === "object" ? raw : {};
   } catch {
+    console.warn("Warning: config.json could not be parsed. Using defaults.");
     return {};
   }
 }
@@ -591,6 +601,7 @@ async function renderHtmlAndPng({ statsJsonPath, htmlOutPath, pngOutPath }) {
 }
 
 async function main() {
+  console.log(`Tokei v${APP_VERSION}`);
   const overwriteToday = process.argv.includes("--overwrite-today");
   const cfg = await ensureConfigOrSetup();
   const cacheDir = path.join(userRoot, "cache");

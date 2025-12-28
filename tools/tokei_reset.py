@@ -15,7 +15,7 @@ def _default_config() -> dict:
         "one_page": True,
         "hashi": {
             "host": "127.0.0.1",
-            "port": 8765,
+            "port": 8766,
             "token": None,
             "refresh_timeout_ms": 10000,
             "require_fresh": True,

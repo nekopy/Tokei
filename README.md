@@ -1,3 +1,8 @@
+**Alpha release**
+
+Tokei is currently in alpha. This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
+
+
 # Tokei (dashboard sync)
 
 Tokei is a standalone sync + report generator that combines:
@@ -59,10 +64,59 @@ Troubleshooting:
 
 ## Recommended first-time setup
 
-1) Install Python 3.10+ and Node.js 18+ (external prerequisites).
-2) Run Setup-Environment.bat to create the venv and install dependencies.
-3) Run Setup-Tokei.bat to configure your settings.
-4) Run run.bat to generate a report.
+### Quick start (most users)
+
+1) Install Node.js 18+
+2) Run Tokei from the Start Menu shortcut
+
+Tokei will generate HTML reports by default. PNG reports require additional setup (see below).
+
+### PNG output (required for PNG reports)
+
+PNG reports are rendered using Puppeteer via Node.js.
+
+To enable PNG output:
+
+1) Install Node.js 18+
+2) Open a terminal in the Tokei directory
+   (for example: `C:\Program Files\Tokei\`)
+3) Run:
+
+    npm install puppeteer
+
+Tokei expects Puppeteer to be available at:
+
+    <Tokei directory>\node_modules\puppeteer
+
+If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG output will fail with a warning.
+
+This explicit setup is intentional for the alpha release to maximize PNG reliability.
+
+
+## External data sources (read-only)
+
+Tokei reads from these external tools but does not modify them:
+
+- Hashi (Anki add-on)
+  - Reads hashi_exports/anki_stats_snapshot.json from your Anki profile
+  - If missing, Tokei warns and continues
+- AnkiMorphs (Anki add-on)
+  - Reads ankimorphs.db from your Anki profile
+  - If missing, Tokei warns and continues
+- GSM (Game Sentence Miner)
+  - Reads gsm.db (auto path uses %APPDATA%\GameSentenceMiner\gsm.db)
+  - If missing, Tokei warns and continues
+- Mokuro
+  - Reads volume-data.json from the configured path
+  - If missing, Tokei warns and continues
+
+## Notes
+
+- output_dir in config.json can be absolute or relative to the Tokei folder.
+- Theme previews are available as PNGs in samples/.
+- For fresh Anki stats, Anki must be running; Tokei triggers a Hashi export via http://127.0.0.1:8766/export before reading the file.
+- Toggl /me/time_entries may limit how far back it can query. Use toggl.baseline_hours to account for older time if needed.
+
 
 ## Build Tokei.exe (app-only)
 
@@ -91,27 +145,3 @@ Run requirements for the built exe:
 - Rerun Setup-Tokei.bat any time you want to update settings.
 - run.bat is safe to run daily (it will detect same-day reports and offer: new report / overwrite today / cancel).
 - Reset-Tokei.bat is destructive; use it only when you want to wipe cache/output.
-
-## External data sources (read-only)
-
-Tokei reads from these external tools but does not modify them:
-
-- Hashi (Anki add-on)
-  - Reads hashi_exports/anki_stats_snapshot.json from your Anki profile
-  - If missing, Tokei warns and continues
-- AnkiMorphs (Anki add-on)
-  - Reads ankimorphs.db from your Anki profile
-  - If missing, Tokei warns and continues
-- GSM (Game Sentence Miner)
-  - Reads gsm.db (auto path uses %APPDATA%\GameSentenceMiner\gsm.db)
-  - If missing, Tokei warns and continues
-- Mokuro
-  - Reads volume-data.json from the configured path
-  - If missing, Tokei warns and continues
-
-## Notes
-
-- output_dir in config.json can be absolute or relative to the Tokei folder.
-- Theme previews are available as PNGs in samples/.
-- For fresh Anki stats, Anki must be running; Tokei triggers a Hashi export via http://127.0.0.1:8766/export before reading the file.
-- Toggl /me/time_entries may limit how far back it can query. Use toggl.baseline_hours to account for older time if needed.
