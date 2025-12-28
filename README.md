@@ -6,7 +6,7 @@ Note: Tokei currently runs as a console app (CLI). A UI is planned.
 
 # Tokei (dashboard sync)
 
-<p align="center">
+<p>
   <img src="tokeilogo.png" alt="Tokei logo" width="420" style="max-width: 100%; height: auto;" />
 </p>
 
