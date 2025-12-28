@@ -6,6 +6,10 @@ Note: Tokei currently runs as a console app (CLI). A UI is planned.
 
 # Tokei (dashboard sync)
 
+<p align="center">
+  <img src="tokeilogo.png" alt="Tokei logo" width="256" />
+</p>
+
 Tokei is a standalone sync + report generator that combines:
 
 - Toggl (API token) for lifetime + today immersion (with description breakdown)
@@ -18,6 +22,13 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 - HTML: output/Tokei Report <report_no>.html
 - PNG:  output/Tokei Report <report_no>.png
 - Warnings: output/Tokei Report <report_no> WARNINGS.txt (only if warnings exist)
+
+## Theme samples
+
+<p>
+  <img src="samples/report-dark-graphite.png" alt="Dark Graphite sample" width="420" />
+  <img src="samples/report-bright-daylight.png" alt="Bright Daylight sample" width="420" />
+</p>
 
 ## Recommended first-time setup
 
