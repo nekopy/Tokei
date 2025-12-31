@@ -81,3 +81,44 @@ Remove-Item Env:TOKEI_APP_ROOT -ErrorAction SilentlyContinue
 Remove-Item Env:TOGGL_API_TOKEN -ErrorAction SilentlyContinue
 .\run.bat
 ```
+
+## Run the EXE with a custom user root
+
+Use this when you want the built `Tokei.exe` to read/write config + cache + logs from a specific folder
+(for example, `%APPDATA%\Tokei` vs a portable/dev folder).
+
+### CMD
+
+**AppData mode (uses `%APPDATA%\Tokei`)**
+
+```bat
+cd /d D:\Tokei\dist\Tokei
+set TOKEI_USER_ROOT=%APPDATA%\Tokei
+Tokei.exe --no-pause
+```
+
+**Portable mode (uses the EXE folder)**
+
+```bat
+cd /d D:\Tokei\dist\Tokei
+set TOKEI_USER_ROOT=
+Tokei.exe --no-pause
+```
+
+### PowerShell
+
+**AppData mode (uses `%APPDATA%\Tokei`)**
+
+```powershell
+cd D:\Tokei\dist\Tokei
+$env:TOKEI_USER_ROOT = "$env:APPDATA\Tokei"
+.\Tokei.exe --no-pause
+```
+
+**Portable mode (uses the EXE folder)**
+
+```powershell
+cd D:\Tokei\dist\Tokei
+Remove-Item Env:TOKEI_USER_ROOT -ErrorAction SilentlyContinue
+.\Tokei.exe --no-pause
+```
