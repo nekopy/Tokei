@@ -104,6 +104,7 @@ This explicit setup is intentional for the alpha release to maximize PNG reliabi
 Troubleshooting:
 
 - Runtime logs + exit code notes: `INTERNAL.md`
+- Recent changes: `CHANGELOG.md`
 
 ## External data sources (read-only)
 

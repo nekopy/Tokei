@@ -438,7 +438,14 @@ def _run_external_lemma_builder(root: Path, words_db_path: Path, rebuild: bool) 
         return False
     return True
 def _load_config(path: Path) -> Config:
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    # Windows PowerShell's default "UTF8" encoding writes a BOM, which breaks json.loads
+    # unless we decode with utf-8-sig.
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except Exception:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    text = text.lstrip("\ufeff")
+    raw = json.loads(text)
     tz = str(raw.get("timezone") or "America/Los_Angeles")
     theme = str(raw.get("theme") or "dark-graphite")
     one_page = bool(raw.get("one_page", True))
@@ -882,35 +889,202 @@ def _read_mokuro_manga_chars(cfg: Config, warnings: list[str] | None = None) -> 
     return int(total)
 
 
-def _read_gsm_chars(cfg: Config, warnings: list[str] | None = None) -> int:
+def _resolve_gsm_db_path(cfg: Config, warnings: list[str] | None = None) -> Path | None:
     p = (cfg.gsm_db_path or "").strip()
     if p.lower() == "off":
-        return 0
+        return None
     if p.lower() == "auto" or not p:
         appdata = os.environ.get("APPDATA")
         if not appdata:
             if warnings is not None:
                 warnings.append("Could not read GSM chars: APPDATA is not set.")
-            return 0
+            return None
         p = str(Path(appdata) / "GameSentenceMiner" / "gsm.db")
     db_path = Path(p)
     if not db_path.exists():
         if warnings is not None:
             warnings.append(f"GSM DB not found: {db_path}.")
+        return None
+    return db_path
+
+
+def _read_gsm_db_lifetime_chars(con: sqlite3.Connection) -> int:
+    row = con.execute(
+        """
+        SELECT SUM(CAST(total_characters AS INTEGER)) AS lifetime_chars
+        FROM daily_stats_rollup
+        WHERE total_characters IS NOT NULL AND total_characters != ''
+        """
+    ).fetchone()
+    if not row or row[0] is None:
+        return 0
+    return int(row[0] or 0)
+
+
+def _try_read_gsm_db_today_chars(
+    con: sqlite3.Connection,
+    *,
+    today: date,
+    tz: Any,
+) -> int | None:
+    # We need a "day" column to safely de-duplicate against gsm_live.sqlite for today.
+    cols = con.execute("PRAGMA table_info(daily_stats_rollup)").fetchall()
+    if not cols:
+        return None
+
+    col_types: dict[str, str] = {str(name): str(tp or "") for (_cid, name, tp, _nn, _d, _pk) in cols}
+    if "total_characters" not in col_types:
+        return None
+
+    day_str = today.isoformat()
+
+    preferred = ["day", "date", "report_day", "stat_day", "stat_date", "day_ts", "day_timestamp"]
+    candidates = [c for c in preferred if c in col_types]
+    candidates += [c for c in col_types.keys() if c not in candidates and ("day" in c.lower() or "date" in c.lower())]
+
+    for day_col in candidates:
+        tp = col_types.get(day_col, "").upper()
+        if "TEXT" in tp:
+            sample = con.execute(
+                f"SELECT {day_col} FROM daily_stats_rollup WHERE {day_col} IS NOT NULL LIMIT 1"
+            ).fetchone()
+            sample_s = str(sample[0]) if sample and sample[0] is not None else ""
+            sample_s = sample_s.strip()
+            sample_day: date | None = None
+            if sample_s:
+                # Many GSM tables use ISO day strings, but handle minor variations too.
+                try:
+                    sample_day = date.fromisoformat(sample_s[:10])
+                except Exception:
+                    sample_day = None
+
+            row = con.execute(
+                f"""
+                SELECT SUM(CAST(total_characters AS INTEGER))
+                FROM daily_stats_rollup
+                WHERE {day_col} = ? OR {day_col} LIKE ?
+                """,
+                (day_str, day_str + "%"),
+            ).fetchone()
+            if row and row[0] is not None:
+                return int(row[0] or 0)
+            # If this looks like a real day column but there's simply no row yet for
+            # "today" (common when GSM hasn't rolled up), treat as 0 instead of "unknown".
+            if sample_day is not None:
+                return 0
+            continue
+
+        # Try numeric day columns.
+        sample = con.execute(
+            f"SELECT {day_col} FROM daily_stats_rollup WHERE {day_col} IS NOT NULL LIMIT 1"
+        ).fetchone()
+        if not sample:
+            continue
+        try:
+            v = float(sample[0])
+        except Exception:
+            continue
+
+        # yyyymmdd integer day keys
+        ymd_int = int(today.strftime("%Y%m%d"))
+        if 20_000_101 <= v <= 20_991_231:
+            row = con.execute(
+                f"""
+                SELECT SUM(CAST(total_characters AS INTEGER))
+                FROM daily_stats_rollup
+                WHERE CAST({day_col} AS INTEGER) = ?
+                """,
+                (ymd_int,),
+            ).fetchone()
+            if row and row[0] is not None:
+                return int(row[0] or 0)
+            continue
+
+        # Unix timestamp seconds (or milliseconds) day keys
+        start_dt = datetime.combine(today, time.min, tzinfo=tz)
+        end_dt = start_dt + timedelta(days=1)
+        start_ts = start_dt.timestamp()
+        end_ts = end_dt.timestamp()
+
+        # Heuristic: very large values are likely milliseconds.
+        if v > 10_000_000_000:  # ~year 2286 in seconds
+            start_ts *= 1000.0
+            end_ts *= 1000.0
+
+        row = con.execute(
+            f"""
+            SELECT SUM(CAST(total_characters AS INTEGER))
+            FROM daily_stats_rollup
+            WHERE {day_col} >= ? AND {day_col} < ?
+            """,
+            (start_ts, end_ts),
+        ).fetchone()
+        if row and row[0] is not None:
+            return int(row[0] or 0)
+
+    return None
+
+
+def _read_gsm_live_today_chars(
+    *,
+    root: Path,
+    today: date,
+    warnings: list[str] | None = None,
+) -> int | None:
+    live_db = root / "cache" / "gsm_live.sqlite"
+    if not live_db.exists():
+        return None
+    try:
+        con = sqlite3.connect(f"file:{live_db}?mode=ro", uri=True)
+        try:
+            row = con.execute(
+                "SELECT COALESCE(SUM(total_chars), 0) FROM gsm_sessions WHERE day = ?",
+                (today.isoformat(),),
+            ).fetchone()
+            return int(row[0] or 0) if row else 0
+        finally:
+            con.close()
+    except sqlite3.Error as e:
+        if warnings is not None:
+            warnings.append(f"Failed to query GSM live DB: {live_db} ({type(e).__name__}).")
+        return None
+
+
+def _read_gsm_chars(
+    cfg: Config,
+    *,
+    root: Path,
+    today: date,
+    tz: Any,
+    warnings: list[str] | None = None,
+) -> int:
+    db_path = _resolve_gsm_db_path(cfg, warnings=warnings)
+    if db_path is None:
         return 0
     try:
         con = sqlite3.connect(str(db_path))
         try:
-            row = con.execute(
-                """
-                SELECT SUM(CAST(total_characters AS INTEGER)) AS lifetime_chars
-                FROM daily_stats_rollup
-                WHERE total_characters IS NOT NULL AND total_characters != ''
-                """
-            ).fetchone()
-            if not row or row[0] is None:
-                return 0
-            return int(row[0] or 0)
+            lifetime_db = _read_gsm_db_lifetime_chars(con)
+            today_db = _try_read_gsm_db_today_chars(con, today=today, tz=tz)
+            today_live = _read_gsm_live_today_chars(root=root, today=today, warnings=warnings)
+
+            if today_db is None:
+                if today_live is not None and warnings is not None:
+                    warnings.append(
+                        "GSM live session export detected, but could not locate a usable day column in gsm.db daily_stats_rollup to de-duplicate; using gsm.db lifetime as-is."
+                    )
+                return int(lifetime_db)
+
+            if today_live is None:
+                return int(lifetime_db)
+
+            if warnings is not None and today_live > today_db:
+                warnings.append(
+                    f"GSM live sessions exceed gsm.db rollup for {today.isoformat()}: live={today_live}, db={today_db}. Using live sessions for today."
+                )
+
+            corrected = int(lifetime_db - int(today_db) + max(int(today_db), int(today_live)))
+            return corrected
         finally:
             con.close()
     except sqlite3.Error as e:
@@ -1245,7 +1419,7 @@ def main(argv: list[str]) -> int:
         known_lemmas = int(tokei_surface_words)
         known_inflections = int(tokei_surface_words)
         manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
-        gsm_chars_total = _read_gsm_chars(cfg, warnings=warnings)
+        gsm_chars_total = _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings)
         anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
 
         # For deltas, compare against the previous report before the one we are generating.

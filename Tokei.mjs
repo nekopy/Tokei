@@ -48,6 +48,7 @@ function loadConfig() {
     return {};
   }
   try {
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
     const raw = JSON.parse(text);
     return raw && typeof raw === "object" ? raw : {};
   } catch {

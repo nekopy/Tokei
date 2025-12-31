@@ -13,3 +13,6 @@
 
 # Runtime user config (generated at first run)
 config.json
+
+dev-run.bat
+/.devdata/

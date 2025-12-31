@@ -27,6 +27,14 @@ Output is written to `dist-installer\Tokei-Setup-<version>.exe`.
 - Does not overwrite existing user data in `%APPDATA%\Tokei\`
 - Optional known-words CSVs: put one or more `*.csv` files in `%APPDATA%\Tokei\data\` (only column 1 is used; header rows are allowed)
 
+## Recommended: GSM live sessions export
+
+Tokei can read a small SQLite file (`%TOKEI_USER_ROOT%\cache\gsm_live.sqlite`) exported by a GSM user plugin
+to capture "today" session totals even if GSM is closed at end-of-day. This is recommended because GSM's `gsm.db`
+may not reflect "live today" until GSM rolls up/persists the day.
+
+- Plugin template + install notes: `extras/gsm-plugin/README.md`
+
 ## Node.js Preflight Check
 
 The installer runs `where node` and shows a warning if Node.js is missing.
