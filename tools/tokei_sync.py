@@ -958,6 +958,8 @@ def _read_ttsu_chars(cfg: Config, warnings: list[str] | None = None) -> int:
             if not isinstance(date_key, str) or not date_key.strip():
                 continue
             chars = rec.get("charactersRead")
+            if not isinstance(chars, (int, float, str)):
+                continue
             try:
                 chars_i = int(chars)
             except Exception:
@@ -1729,6 +1731,8 @@ def main(argv: list[str]) -> int:
                     json.dumps(warnings, ensure_ascii=False),
                 ),
             )
+            if cur.lastrowid is None:
+                raise RuntimeError("Failed to create snapshot: lastrowid is None.")
             run_id = int(cur.lastrowid)
         con.commit()
 
