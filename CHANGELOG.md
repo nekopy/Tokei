@@ -7,6 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## Unreleased
 
 ### Added
+- Optional Ttsu Reader support: ingest novel characters read from `statistics_*.json` via `config.json -> ttsu.data_dir`, and include it in the Reading totals.
 
 ### Fixed
 

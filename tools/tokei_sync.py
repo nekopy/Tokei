@@ -39,6 +39,7 @@ class Config:
     toggl_chunk_days: int
     toggl_baseline_seconds: int
     mokuro_volume_data_path: str
+    ttsu_data_dir: str
     gsm_db_path: str
     phase2_csv_rule_id: str
 
@@ -466,6 +467,9 @@ def _load_config(path: Path) -> Config:
     mokuro = raw.get("mokuro") or {}
     mokuro_volume_data_path = str(mokuro.get("volume_data_path") or "")
 
+    ttsu = raw.get("ttsu") or {}
+    ttsu_data_dir = str(ttsu.get("data_dir") or "")
+
     gsm = raw.get("gsm") or {}
     gsm_db_path = str(gsm.get("db_path") or "auto")
 
@@ -483,6 +487,7 @@ def _load_config(path: Path) -> Config:
         toggl_chunk_days=chunk_days,
         toggl_baseline_seconds=baseline_seconds,
         mokuro_volume_data_path=mokuro_volume_data_path,
+        ttsu_data_dir=ttsu_data_dir,
         gsm_db_path=gsm_db_path,
         phase2_csv_rule_id=phase2_csv_rule_id,
     )
@@ -652,6 +657,7 @@ def _ensure_schema(con: sqlite3.Connection) -> None:
           known_lemmas INTEGER NOT NULL,
           known_inflections INTEGER NOT NULL,
           manga_chars_total INTEGER NOT NULL,
+          ttsu_chars_total INTEGER NOT NULL,
           gsm_chars_total INTEGER NOT NULL,
           anki_total_reviews INTEGER NOT NULL,
           anki_reviews INTEGER NOT NULL,
@@ -665,6 +671,8 @@ def _ensure_schema(con: sqlite3.Connection) -> None:
     cols = {row[1] for row in con.execute("PRAGMA table_info(snapshots)").fetchall()}
     if "manga_chars_total" not in cols:
         con.execute("ALTER TABLE snapshots ADD COLUMN manga_chars_total INTEGER NOT NULL DEFAULT 0;")
+    if "ttsu_chars_total" not in cols:
+        con.execute("ALTER TABLE snapshots ADD COLUMN ttsu_chars_total INTEGER NOT NULL DEFAULT 0;")
     if "gsm_chars_total" not in cols:
         con.execute("ALTER TABLE snapshots ADD COLUMN gsm_chars_total INTEGER NOT NULL DEFAULT 0;")
     if "warnings_json" not in cols:
@@ -887,6 +895,91 @@ def _read_mokuro_manga_chars(cfg: Config, warnings: list[str] | None = None) -> 
             if isinstance(chars, (int, float)):
                 total += int(chars)
     return int(total)
+
+
+def _read_ttsu_chars(cfg: Config, warnings: list[str] | None = None) -> int:
+    """
+    Read lifetime "characters read" from Ttsu Reader exports.
+
+    We intentionally derive totals from statistics_*.json rather than progress_*.json:
+    progress can decrease if you move backwards in a book, while daily statistics are
+    intended to represent cumulative reading for that calendar day.
+    """
+
+    p = (cfg.ttsu_data_dir or "").strip()
+    if not p:
+        return 0
+
+    root = Path(p)
+    if not root.exists():
+        if warnings is not None:
+            warnings.append(f"Ttsu data dir not found: {root}.")
+        return 0
+    if not root.is_dir():
+        if warnings is not None:
+            warnings.append(f"Ttsu data dir is not a directory: {root}.")
+        return 0
+
+    files = sorted(root.rglob("statistics_*.json"))
+    if not files:
+        if warnings is not None:
+            warnings.append(f"No Ttsu statistics_*.json found under: {root}.")
+        return 0
+
+    # De-duplicate within (book, day) because Ttsu can write multiple snapshots for the same day.
+    # We take the max charactersRead, and use lastStatisticModified as a tiebreaker.
+    best: dict[tuple[str, str], tuple[int, int]] = {}
+    bad_files = 0
+
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8-sig")
+        except Exception:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        text = text.lstrip("\ufeff")
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            bad_files += 1
+            continue
+        if not isinstance(parsed, list):
+            bad_files += 1
+            continue
+
+        try:
+            book_key = str(path.parent.relative_to(root)).replace("\\", "/")
+        except Exception:
+            book_key = str(path.parent).replace("\\", "/")
+
+        for rec in parsed:
+            if not isinstance(rec, dict):
+                continue
+            date_key = rec.get("dateKey")
+            if not isinstance(date_key, str) or not date_key.strip():
+                continue
+            chars = rec.get("charactersRead")
+            try:
+                chars_i = int(chars)
+            except Exception:
+                continue
+            if chars_i < 0:
+                continue
+
+            last_mod = rec.get("lastStatisticModified")
+            try:
+                last_mod_i = int(last_mod or 0)
+            except Exception:
+                last_mod_i = 0
+
+            k = (book_key, date_key.strip())
+            prev = best.get(k)
+            if prev is None or chars_i > prev[0] or (chars_i == prev[0] and last_mod_i > prev[1]):
+                best[k] = (chars_i, last_mod_i)
+
+    if bad_files and warnings is not None:
+        warnings.append(f"Skipped {bad_files} unreadable Ttsu statistics file(s).")
+
+    return int(sum(chars for (chars, _lm) in best.values()))
 
 
 def _resolve_gsm_db_path(cfg: Config, warnings: list[str] | None = None) -> Path | None:
@@ -1221,6 +1314,8 @@ def _build_report_model(
     known_inflections_delta: int,
     manga_chars_total: int,
     manga_chars_delta: int,
+    ttsu_chars_total: int,
+    ttsu_chars_delta: int,
     gsm_chars_total: int,
     gsm_chars_delta: int,
 ) -> dict[str, Any]:
@@ -1251,6 +1346,8 @@ def _build_report_model(
         "total_reviews_delta": int(anki_total_reviews_delta),
         "manga_chars_total": int(manga_chars_total),
         "manga_chars_delta": int(manga_chars_delta),
+        "ttsu_chars_total": int(ttsu_chars_total),
+        "ttsu_chars_delta": int(ttsu_chars_delta),
         "gsm_chars_total": int(gsm_chars_total),
         "gsm_chars_delta": int(gsm_chars_delta),
         "immersion_log": immersion_log,
@@ -1502,6 +1599,7 @@ def main(argv: list[str]) -> int:
         known_lemmas = int(tokei_surface_words)
         known_inflections = int(tokei_surface_words)
         manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
+        ttsu_chars_total = _read_ttsu_chars(cfg, warnings=warnings)
         gsm_chars_total = _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings)
         anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
 
@@ -1510,7 +1608,7 @@ def main(argv: list[str]) -> int:
         if args.overwrite_today and prev_today:
             prev = con.execute(
                 """
-                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
+                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, ttsu_chars_total, gsm_chars_total,
                        anki_total_reviews, anki_true_retention, tokei_surface_words
                 FROM snapshots
                 WHERE run_id < ?
@@ -1522,7 +1620,7 @@ def main(argv: list[str]) -> int:
         else:
             prev = con.execute(
                 """
-                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, gsm_chars_total,
+                SELECT toggl_lifetime_seconds, known_lemmas, known_inflections, manga_chars_total, ttsu_chars_total, gsm_chars_total,
                        anki_total_reviews, anki_true_retention, tokei_surface_words
                 FROM snapshots
                 ORDER BY run_id DESC
@@ -1534,10 +1632,11 @@ def main(argv: list[str]) -> int:
         prev_known_lemmas = int(prev[1]) if prev else known_lemmas
         prev_known_inflections = int(prev[2]) if prev else known_inflections
         prev_manga_chars = int(prev[3]) if prev else manga_chars_total
-        prev_gsm_chars = int(prev[4]) if prev else gsm_chars_total
-        prev_anki_total = int(prev[5]) if prev else anki_total
-        prev_retention_rate = (float(prev[6]) * 100.0) if prev else (anki_true_retention * 100.0)
-        prev_tokei_surface_words = int(prev[7]) if prev else tokei_surface_words
+        prev_ttsu_chars = int(prev[4]) if prev else ttsu_chars_total
+        prev_gsm_chars = int(prev[5]) if prev else gsm_chars_total
+        prev_anki_total = int(prev[6]) if prev else anki_total
+        prev_retention_rate = (float(prev[7]) * 100.0) if prev else (anki_true_retention * 100.0)
+        prev_tokei_surface_words = int(prev[8]) if prev else tokei_surface_words
 
         retention_rate = anki_true_retention * 100.0
         retention_delta = round(retention_rate - prev_retention_rate, 2)
@@ -1546,6 +1645,7 @@ def main(argv: list[str]) -> int:
         known_words_delta = int(tokei_surface_words - prev_tokei_surface_words)
         known_inflections_delta = int(known_inflections - prev_known_inflections)
         manga_chars_delta = int(manga_chars_total - prev_manga_chars)
+        ttsu_chars_delta = int(ttsu_chars_total - prev_ttsu_chars)
         gsm_chars_delta = int(gsm_chars_total - prev_gsm_chars)
         total_immersion_delta_hours = round((lifetime_seconds - prev_lifetime) / 3600.0, 2)
 
@@ -1569,6 +1669,7 @@ def main(argv: list[str]) -> int:
                     known_inflections=?,
                     tokei_surface_words=?,
                     manga_chars_total=?,
+                    ttsu_chars_total=?,
                     gsm_chars_total=?,
                     anki_total_reviews=?,
                     anki_reviews=?,
@@ -1588,6 +1689,7 @@ def main(argv: list[str]) -> int:
                     int(known_inflections),
                     int(tokei_surface_words),
                     int(manga_chars_total),
+                    int(ttsu_chars_total),
                     int(gsm_chars_total),
                     int(anki_total),
                     int(anki_reviews),
@@ -1602,10 +1704,10 @@ def main(argv: list[str]) -> int:
                 INSERT INTO snapshots(
                   generated_at, report_day, timezone, theme,
                   toggl_lifetime_seconds, toggl_today_seconds, toggl_today_breakdown_json,
-                  known_lemmas, known_inflections, tokei_surface_words, manga_chars_total, gsm_chars_total,
+                  known_lemmas, known_inflections, tokei_surface_words, manga_chars_total, ttsu_chars_total, gsm_chars_total,
                   anki_total_reviews, anki_reviews, anki_true_retention, warnings_json
                 )
-                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     now.isoformat(),
@@ -1619,6 +1721,7 @@ def main(argv: list[str]) -> int:
                     int(known_inflections),
                     int(tokei_surface_words),
                     int(manga_chars_total),
+                    int(ttsu_chars_total),
                     int(gsm_chars_total),
                     int(anki_total),
                     int(anki_reviews),
@@ -1652,6 +1755,8 @@ def main(argv: list[str]) -> int:
             known_inflections_delta=known_inflections_delta,
             manga_chars_total=manga_chars_total,
             manga_chars_delta=manga_chars_delta,
+            ttsu_chars_total=ttsu_chars_total,
+            ttsu_chars_delta=ttsu_chars_delta,
             gsm_chars_total=gsm_chars_total,
             gsm_chars_delta=gsm_chars_delta,
         )

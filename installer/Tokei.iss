@@ -118,6 +118,7 @@ begin
         '    "baseline_hours": 0' + #13#10 +
         '  },' + #13#10 +
         '  "mokuro": { "volume_data_path": "" },' + #13#10 +
+        '  "ttsu": { "data_dir": "" },' + #13#10 +
         '  "gsm": { "db_path": "auto" }' + #13#10 +
         '}' + #13#10;
 

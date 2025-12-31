@@ -15,6 +15,7 @@ Tokei is a standalone sync + report generator that combines:
 - Toggl (API token) for lifetime + today immersion (with description breakdown)
 - Hashi (hashi_exports/anki_stats_snapshot.json) for Anki retention + review totals
 - Mokuro (volume-data.json) for manga characters read
+- Ttsu Reader (ttu-reader-data/statistics_*.json) for novel characters read
 - GameSentenceMiner (gsm.db) for GSM characters read
 
 It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
@@ -119,6 +120,9 @@ Tokei reads from these external tools but does not modify them:
   - If missing, Tokei warns and continues
 - Mokuro
   - Reads volume-data.json from the configured path
+  - If missing, Tokei warns and continues
+- Ttsu Reader
+  - Reads statistics_*.json under the configured ttu-reader-data directory
   - If missing, Tokei warns and continues
 
 ## Notes

@@ -430,6 +430,7 @@ async function ensureConfigOrSetup() {
       baseline_hours: 0,
     },
     mokuro: { volume_data_path: "" },
+    ttsu: { data_dir: "" },
     gsm: { db_path: "auto" },
   };
   base.output_dir = getDefaultOutputDir();
@@ -544,6 +545,14 @@ async function ensureConfigOrSetup() {
   console.log("");
   base.mokuro = base.mokuro || {};
   base.mokuro.volume_data_path = await promptText("Mokuro volume-data.json path", base.mokuro.volume_data_path || "");
+
+  console.log("");
+  console.log("Ttsu Reader (optional): to include novel reading stats, paste the full path to your ttu-reader-data folder.");
+  console.log("Example: G:/My Drive/ttu-reader-data");
+  console.log("Press Enter to skip.");
+  console.log("");
+  base.ttsu = base.ttsu || {};
+  base.ttsu.data_dir = await promptText("Ttsu data_dir path", base.ttsu.data_dir || "");
 
   fs.mkdirSync(userRoot, { recursive: true });
   fs.writeFileSync(configPath, JSON.stringify(base, null, 2) + "\n", "utf8");

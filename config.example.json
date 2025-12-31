@@ -21,6 +21,9 @@
   "mokuro": {
     "volume_data_path": ""
   },
+  "ttsu": {
+    "data_dir": ""
+  },
   "gsm": {
     "db_path": "auto"
   },

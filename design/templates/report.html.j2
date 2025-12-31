@@ -811,6 +811,10 @@
       margin-top: 4px;
     }
 
+    .split-row.split-row-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
     .split-label {
       font-size: 11px;
       text-transform: uppercase;
@@ -1180,22 +1184,22 @@
           </div>
         </section>
 
-        <!-- Row 4: Reading (Manga + GSM) -->
+        <!-- Row 4: Reading (Manga + Ttsu + GSM) -->
         <section class="card card-reading">
           <div class="card-inner">
             <header class="card-header">
               <div class="card-title">Reading</div>
-              <div class="card-tag">Manga + GSM</div>
+              <div class="card-tag">Manga + Ttsu + GSM</div>
             </header>
 
             <div class="value-medium">
-              {{ (stats.manga_chars_total + stats.gsm_chars_total) | format_chars }}
+              {{ (stats.manga_chars_total + stats.ttsu_chars_total + stats.gsm_chars_total) | format_chars }}
             </div>
-            <div class="muted">Total characters read across manga and games</div>
+            <div class="muted">Total characters read across manga, novels, and games</div>
 
             <div class="h-separator"></div>
 
-            <div class="split-row">
+            <div class="split-row split-row-3">
               <div>
                 <div class="split-label">Manga Characters</div>
                 <div class="split-value">{{ stats.manga_chars_total | format_chars }}</div>
@@ -1214,16 +1218,33 @@
               </div>
 
               <div>
-                <div class="split-label">Game Characters</div>
-                <div class="split-value">{{ stats.gsm_chars_total | format_chars }}</div>
+                <div class="split-label">Novel Characters</div>
+                <div class="split-value">{{ stats.ttsu_chars_total | format_chars }}</div>
                 <div class="split-subtext">
-                  {% set d2 = stats.gsm_chars_delta %}
+                  {% set d2 = stats.ttsu_chars_delta %}
                   {% if d2 == 0 %}
                     <span class="delta">—</span>
                   {% else %}
                     <span class="delta {{ 'up' if d2 >= 0 else 'down' }}">
                       <span class="chevron">{{ '▲' if d2 >= 0 else '▼' }}</span>
                       {{ d2 | format_k }}
+                    </span>
+                  {% endif %}
+                  <span class="muted">since last report</span>
+                </div>
+              </div>
+
+              <div>
+                <div class="split-label">Game Characters</div>
+                <div class="split-value">{{ stats.gsm_chars_total | format_chars }}</div>
+                <div class="split-subtext">
+                  {% set d3 = stats.gsm_chars_delta %}
+                  {% if d3 == 0 %}
+                    <span class="delta">—</span>
+                  {% else %}
+                    <span class="delta {{ 'up' if d3 >= 0 else 'down' }}">
+                      <span class="chevron">{{ '▲' if d3 >= 0 else '▼' }}</span>
+                      {{ d3 | format_k }}
                     </span>
                   {% endif %}
                   <span class="muted">since last report</span>

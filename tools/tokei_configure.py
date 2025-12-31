@@ -43,6 +43,7 @@ def main(argv: list[str]) -> int:
         "--output-dir",
         help="Output directory for HTML/PNG (relative to Tokei folder or absolute).",
     )
+    parser.add_argument("--ttsu-data-dir", help="Path to Ttsu Reader ttu-reader-data directory.")
     parser.add_argument("--start-date")
     parser.add_argument("--baseline-hms", help="Baseline lifetime time as HH:MM:SS (hours may exceed 24).")
     parser.add_argument("--baseline-hours", type=float)
@@ -65,6 +66,12 @@ def main(argv: list[str]) -> int:
         data["theme"] = str(args.theme)
     if args.output_dir:
         data["output_dir"] = str(args.output_dir)
+
+    data.setdefault("ttsu", {})
+    ttsu = data.get("ttsu") if isinstance(data.get("ttsu"), dict) else {}
+    if args.ttsu_data_dir is not None:
+        ttsu["data_dir"] = str(args.ttsu_data_dir)
+    data["ttsu"] = ttsu
 
     toggl = data.get("toggl") if isinstance(data.get("toggl"), dict) else {}
     if args.start_date:

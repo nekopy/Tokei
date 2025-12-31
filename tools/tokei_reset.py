@@ -28,6 +28,7 @@ def _default_config() -> dict:
             "baseline_hours": 0,
         },
         "mokuro": {"volume_data_path": ""},
+        "ttsu": {"data_dir": ""},
         "gsm": {"db_path": "auto"},
     }
 

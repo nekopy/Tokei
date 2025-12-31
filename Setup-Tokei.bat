@@ -26,11 +26,13 @@ set "DEFAULT_THEME=dark-graphite"
 set "DEFAULT_OUTPUT_DIR=output"
 set "DEFAULT_ANKI_PROFILE=User 1"
 set "DEFAULT_BASELINE_HMS=0:00:00"
+set "DEFAULT_TTSU_DATA_DIR="
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; if($c){ $c.timezone }"`) do if not "%%i"=="" set "DEFAULT_TIMEZONE=%%i"
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; if($c){ $c.theme }"`) do if not "%%i"=="" set "DEFAULT_THEME=%%i"
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; if($c){ $c.output_dir }"`) do if not "%%i"=="" set "DEFAULT_OUTPUT_DIR=%%i"
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; if($c){ $c.anki_profile }"`) do if not "%%i"=="" set "DEFAULT_ANKI_PROFILE=%%i"
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; $h=0; if($c -and $c.toggl -and $c.toggl.baseline_hours -ne $null){ $h=[double]$c.toggl.baseline_hours }; $s=[int][math]::Round($h*3600); $hh=[int]([math]::Floor($s/3600)); $mm=[int]([math]::Floor(($s%%3600)/60)); $ss=[int]($s%%60); \"{0}:{1:D2}:{2:D2}\" -f $hh,$mm,$ss"`) do if not "%%i"=="" set "DEFAULT_BASELINE_HMS=%%i"
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { $c=Get-Content -Raw 'config.json' | ConvertFrom-Json } catch { $c=$null }; if($c -and $c.ttsu -and $c.ttsu.data_dir){ $c.ttsu.data_dir }"`) do if not "%%i"=="" set "DEFAULT_TTSU_DATA_DIR=%%i"
 
 echo Step 1: Toggl API token (optional but required for hours)
 echo.
@@ -132,7 +134,16 @@ set "ANKI_PROFILE="
 set /p ANKI_PROFILE=Anki profile name (press Enter to keep: %DEFAULT_ANKI_PROFILE%) ^> 
 if "%ANKI_PROFILE%"=="" set "ANKI_PROFILE=%DEFAULT_ANKI_PROFILE%"
 
-%PY_EXE% tools\tokei_configure.py --config config.json --baseline-hms "%BASELINE_HMS%" --timezone "%TIMEZONE%" --theme "%THEME%" --output-dir "%OUTPUT_DIR%" --anki-profile "%ANKI_PROFILE%"
+echo.
+echo Ttsu Reader (optional): path to your ttu-reader-data folder
+echo Example: G:\My Drive\ttu-reader-data
+echo Press Enter to skip.
+echo.
+set "TTSU_DATA_DIR="
+set /p TTSU_DATA_DIR=Ttsu data_dir path (press Enter to keep: %DEFAULT_TTSU_DATA_DIR%) ^> 
+if "%TTSU_DATA_DIR%"=="" set "TTSU_DATA_DIR=%DEFAULT_TTSU_DATA_DIR%"
+
+%PY_EXE% tools\tokei_configure.py --config config.json --baseline-hms "%BASELINE_HMS%" --timezone "%TIMEZONE%" --theme "%THEME%" --output-dir "%OUTPUT_DIR%" --anki-profile "%ANKI_PROFILE%" --ttsu-data-dir "%TTSU_DATA_DIR%"
 if errorlevel 1 (
   echo.
   echo Setup failed.
