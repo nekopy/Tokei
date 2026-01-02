@@ -25,4 +25,4 @@ you to re-open GSM.
 ## Notes
 
 - This is user-specific configuration and should not be installed by the Tokei installer.
-- If `gsm_live.sqlite` is present, Tokei treats `gsm.db` as the lifetime baseline and reconciles recent days (3-day window) without double-counting.
+- If `gsm_live.sqlite` is present, Tokei treats `gsm.db` as the lifetime baseline and reconciles all days present in `gsm_live.sqlite` without double-counting.

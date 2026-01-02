@@ -1176,37 +1176,35 @@ def _read_gsm_live_today_chars(
         return None
 
 
-def _read_gsm_live_window_chars(
+def _read_gsm_live_daily_totals(
     *,
     root: Path,
-    days: list[date],
     warnings: list[str] | None = None,
 ) -> dict[date, int] | None:
     live_db = root / "cache" / "gsm_live.sqlite"
     if not live_db.exists():
         return None
 
-    days_by_iso = {d.isoformat(): d for d in days}
-    placeholders = ", ".join(["?"] * len(days_by_iso))
-    sql = f"""
-      SELECT day, COALESCE(SUM(total_chars), 0)
-      FROM gsm_sessions
-      WHERE day IN ({placeholders})
-      GROUP BY day
-    """
-
-    totals: dict[date, int] = {d: 0 for d in days}
     try:
         con = sqlite3.connect(f"file:{live_db}?mode=ro", uri=True)
         try:
-            rows = con.execute(sql, tuple(days_by_iso.keys())).fetchall()
+            rows = con.execute(
+                """
+                SELECT day, COALESCE(SUM(total_chars), 0)
+                FROM gsm_sessions
+                GROUP BY day
+                """
+            ).fetchall()
         finally:
             con.close()
+        totals: dict[date, int] = {}
         for day_s, total in rows:
-            d = days_by_iso.get(str(day_s))
-            if d is not None:
-                totals[d] = int(total or 0)
-        return totals
+            try:
+                d = date.fromisoformat(str(day_s))
+            except Exception:
+                continue
+            totals[d] = int(total or 0)
+        return totals or {}
     except sqlite3.Error as e:
         if warnings is not None:
             warnings.append(f"Failed to query GSM live DB: {live_db} ({type(e).__name__}).")
@@ -1221,10 +1219,6 @@ def _read_gsm_chars(
     tz: Any,
     warnings: list[str] | None = None,
 ) -> int:
-    # Window used to reconcile gsm.db rollup with gsm_live.sqlite.
-    # We replace gsm.db totals for these days with max(db, live) to avoid double-counting.
-    GSM_LIVE_WINDOW_DAYS = 3
-
     db_path = _resolve_gsm_db_path(cfg, warnings=warnings)
     if db_path is None:
         return 0
@@ -1232,35 +1226,40 @@ def _read_gsm_chars(
         con = sqlite3.connect(str(db_path))
         try:
             lifetime_db = _read_gsm_db_lifetime_chars(con)
-            day_col_info = _detect_gsm_rollup_day_column(con)
-            days = [today - timedelta(days=(GSM_LIVE_WINDOW_DAYS - 1 - i)) for i in range(GSM_LIVE_WINDOW_DAYS)]
+            live_totals = _read_gsm_live_daily_totals(root=root, warnings=warnings)
+            if live_totals is None or not live_totals:
+                return int(lifetime_db)
 
-            if day_col_info is None or not day_col_info[2]:
-                today_live = _read_gsm_live_today_chars(root=root, today=today, warnings=warnings)
-                if today_live is not None and warnings is not None:
+            day_col_info = _detect_gsm_rollup_day_column(con)
+            if day_col_info is None or not day_col_info[2] or day_col_info[1] == "text":
+                if warnings is not None:
                     warnings.append(
-                        "GSM live session export detected, but could not locate a usable day column in gsm.db daily_stats_rollup to de-duplicate; using gsm.db lifetime as-is."
+                        "GSM live session export detected, but could not locate a usable ISO day column in gsm.db daily_stats_rollup to de-duplicate; using gsm.db lifetime as-is."
                     )
                 return int(lifetime_db)
 
-            live_totals = _read_gsm_live_window_chars(root=root, days=days, warnings=warnings)
-            if live_totals is None:
-                return int(lifetime_db)
-
             day_col, kind, _is_likely_day_col = day_col_info
-            db_totals = {d: _read_gsm_db_day_chars(con, today=d, tz=tz, day_col=day_col, kind=kind) for d in days}
-
-            db_window = sum(db_totals.values())
-            merged_totals = {d: max(db_totals[d], live_totals[d]) for d in days}
-            merged_window = sum(merged_totals.values())
+            days = sorted(live_totals.keys())
+            db_totals = {
+                d: _read_gsm_db_day_chars(con, today=d, tz=tz, day_col=day_col, kind=kind) for d in days
+            }
 
             if warnings is not None:
-                for d in days:
-                    if live_totals[d] > db_totals[d]:
+                # GSM's DB rollups can lag (or omit days) even when the API shows live stats.
+                # Only warn when the DB *does* have a non-zero total for a day but is still behind
+                # the live export, which suggests a real mismatch rather than "rollup not written yet".
+                diffs = [d for d in days if db_totals[d] > 0 and live_totals[d] > db_totals[d]]
+                if diffs:
+                    diffs.sort(reverse=True)
+                    for d in diffs[:3]:
                         warnings.append(
                             f"GSM live sessions exceed gsm.db rollup for {d.isoformat()}: live={live_totals[d]}, db={db_totals[d]}. Using live sessions for that day."
                         )
+                    if len(diffs) > 3:
+                        warnings.append(f"GSM live sessions exceed gsm.db rollup for {len(diffs) - 3} more day(s).")
 
+            db_window = sum(db_totals.values())
+            merged_window = sum(max(db_totals[d], live_totals[d]) for d in days)
             corrected = int(lifetime_db - int(db_window) + int(merged_window))
             return corrected
         finally:
