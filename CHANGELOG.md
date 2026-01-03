@@ -7,10 +7,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## Unreleased
 
 ### Added
-- Built-in Anki snapshot exporter (`tools/tokei_anki_export.py`) that writes Hashi-compatible `anki_stats_snapshot.json` and `known_words.sqlite` from `collection.anki2`.
-- First-run Anki snapshot setup wizard in `Tokei.mjs` that builds `config.json -> anki_snapshot.rules` (supports multiple decks per rule).
 
 ### Fixed
+
+## 0.3.0 - 2026-01-03
+
+### Added
+- Built-in Anki snapshot exporter (`tools/tokei_anki_export.py`) that writes Hashi-compatible `anki_stats_snapshot.json` and `known_words.sqlite` from `collection.anki2`.
+- First-run Anki snapshot setup wizard in `Tokei.mjs` that builds `config.json -> anki_snapshot.rules` (supports multiple decks per rule).
 
 ## 0.2.0 - 2025-12-31
 
