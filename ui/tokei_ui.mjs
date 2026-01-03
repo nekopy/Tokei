@@ -96,6 +96,36 @@ function getBundledGsmPluginSnippetPath() {
   return path.join(appRoot, "extras", "gsm-plugin", "plugins.py");
 }
 
+function getBundledGsmHelperPath() {
+  return path.join(appRoot, "extras", "gsm-plugin", "tokei_live_sync.py");
+}
+
+function getGsmHelperFile() {
+  const folder = getGsmPluginFolder();
+  return folder ? path.join(folder, "tokei_live_sync.py") : null;
+}
+
+function readTextFileOrNull(filePath) {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    return fs.readFileSync(filePath, "utf8").replace(/^\ufeff/, "");
+  } catch {
+    return null;
+  }
+}
+
+function getDefaultTokeiRootForExternalTools() {
+  const tokeiRoot = (process.env.TOKEI_USER_ROOT || "").trim();
+  if (tokeiRoot) return tokeiRoot;
+  const appdata = (process.env.APPDATA || "").trim();
+  return appdata ? path.join(appdata, "Tokei") : null;
+}
+
+function getGsmLiveDbPath() {
+  const root = getDefaultTokeiRootForExternalTools();
+  return root ? path.join(root, "cache", "gsm_live.sqlite") : null;
+}
+
 function openExternal(target) {
   const plat = process.platform;
   if (plat === "win32") {
@@ -388,17 +418,66 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && p === "/api/gsm/plugin-snippet") {
     const snippetPath = getBundledGsmPluginSnippetPath();
+    const helperPath = getBundledGsmHelperPath();
     const pluginFolder = getGsmPluginFolder();
     const pluginFile = getGsmPluginFile();
     const pluginFileExists = pluginFile ? fs.existsSync(pluginFile) : false;
+    const helperFile = getGsmHelperFile();
+    const helperFileExists = helperFile ? fs.existsSync(helperFile) : false;
     try {
       if (!fs.existsSync(snippetPath)) {
-        return json(res, 200, { ok: false, error: "snippet_missing", snippetPath, pluginFolder, pluginFile, pluginFileExists });
+        return json(res, 200, {
+          ok: false,
+          error: "snippet_missing",
+          snippetPath,
+          helperPath,
+          pluginFolder,
+          pluginFile,
+          pluginFileExists,
+          helperFile,
+          helperFileExists,
+        });
+      }
+      if (!fs.existsSync(helperPath)) {
+        return json(res, 200, {
+          ok: false,
+          error: "helper_missing",
+          snippetPath,
+          helperPath,
+          pluginFolder,
+          pluginFile,
+          pluginFileExists,
+          helperFile,
+          helperFileExists,
+        });
       }
       const snippet = fs.readFileSync(snippetPath, "utf8").replace(/^\ufeff/, "");
-      return json(res, 200, { ok: true, snippetPath, pluginFolder, pluginFile, pluginFileExists, snippet });
+      const helper = fs.readFileSync(helperPath, "utf8").replace(/^\ufeff/, "");
+      return json(res, 200, {
+        ok: true,
+        snippetPath,
+        helperPath,
+        pluginFolder,
+        pluginFile,
+        pluginFileExists,
+        helperFile,
+        helperFileExists,
+        snippet,
+        helper_filename: "tokei_live_sync.py",
+        helper_snippet: helper,
+      });
     } catch (e) {
-      return json(res, 500, { ok: false, error: String(e?.message || e), snippetPath, pluginFolder, pluginFile, pluginFileExists });
+      return json(res, 500, {
+        ok: false,
+        error: String(e?.message || e),
+        snippetPath,
+        helperPath,
+        pluginFolder,
+        pluginFile,
+        pluginFileExists,
+        helperFile,
+        helperFileExists,
+      });
     }
   }
 
@@ -421,6 +500,94 @@ async function handleApi(req, res) {
       return json(res, 200, { ok: true, pluginFile, exists: fs.existsSync(pluginFile) });
     } catch (e) {
       return json(res, 500, { ok: false, error: String(e?.message || e), pluginFile });
+    }
+  }
+
+  if (req.method === "POST" && p === "/api/gsm/open-helper-file") {
+    const helperFile = getGsmHelperFile();
+    if (!helperFile) return json(res, 200, { ok: false, error: "APPDATA_missing" });
+    try {
+      openExternal(helperFile);
+      return json(res, 200, { ok: true, helperFile, exists: fs.existsSync(helperFile) });
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e?.message || e), helperFile });
+    }
+  }
+
+  if (req.method === "GET" && p === "/api/gsm/status") {
+    const pluginFolder = getGsmPluginFolder();
+    const pluginFile = getGsmPluginFile();
+    const helperFile = getGsmHelperFile();
+    const dbPath = getGsmLiveDbPath();
+
+    const pluginText = pluginFile ? readTextFileOrNull(pluginFile) : null;
+    const helperExists = Boolean(helperFile && fs.existsSync(helperFile));
+    const pluginExists = Boolean(pluginFile && fs.existsSync(pluginFile));
+    const dbExists = Boolean(dbPath && fs.existsSync(dbPath));
+
+    const shimPresent =
+      typeof pluginText === "string" &&
+      pluginText.includes("import tokei_live_sync") &&
+      (pluginText.includes("tokei_live_sync.main") || pluginText.includes("tokei_live_sync.main()"));
+
+    let dbMtime = null;
+    try {
+      if (dbExists && dbPath) dbMtime = new Date(fs.statSync(dbPath).mtimeMs).toISOString();
+    } catch {
+      dbMtime = null;
+    }
+
+    return json(res, 200, {
+      ok: true,
+      pluginFolder,
+      pluginFile,
+      pluginExists,
+      helperFile,
+      helperExists,
+      shimPresent,
+      dbPath,
+      dbExists,
+      dbMtime,
+      tokeiUserRoot: process.env.TOKEI_USER_ROOT || null,
+    });
+  }
+
+  if (req.method === "POST" && p === "/api/gsm/install-helper") {
+    const helperFile = getGsmHelperFile();
+    const helperPath = getBundledGsmHelperPath();
+    if (!helperFile) return json(res, 200, { ok: false, error: "APPDATA_missing" });
+    if (!fs.existsSync(helperPath)) return json(res, 200, { ok: false, error: "helper_missing", helperPath });
+
+    try {
+      fs.mkdirSync(path.dirname(helperFile), { recursive: true });
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e?.message || e), helperFile });
+    }
+
+    const desired = readTextFileOrNull(helperPath);
+    if (desired == null) return json(res, 500, { ok: false, error: "failed_to_read_bundled_helper", helperPath });
+
+    const existing = readTextFileOrNull(helperFile);
+    if (existing != null && existing === desired) {
+      return json(res, 200, { ok: true, helperFile, changed: false, backupPath: null });
+    }
+
+    let backupPath = null;
+    if (existing != null && existing !== desired) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      backupPath = `${helperFile}.bak-${stamp}`;
+      try {
+        fs.writeFileSync(backupPath, existing, "utf8");
+      } catch (e) {
+        return json(res, 500, { ok: false, error: `failed_to_write_backup: ${String(e?.message || e)}`, helperFile, backupPath });
+      }
+    }
+
+    try {
+      fs.writeFileSync(helperFile, desired.endsWith("\n") ? desired : desired + "\n", "utf8");
+      return json(res, 200, { ok: true, helperFile, changed: true, backupPath });
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e?.message || e), helperFile, backupPath });
     }
   }
 

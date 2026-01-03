@@ -385,7 +385,7 @@ async function gsmCopySnippet() {
 
   try {
     await navigator.clipboard.writeText(snippet);
-    return setStatus($("gsm-status"), "Copied plugin snippet to clipboard.", "good");
+    return setStatus($("gsm-status"), "Copied plugins.py shim to clipboard.", "good");
   } catch {
     // Fallback: textarea copy.
     try {
@@ -398,11 +398,77 @@ async function gsmCopySnippet() {
       ta.select();
       document.execCommand("copy");
       document.body.removeChild(ta);
-      return setStatus($("gsm-status"), "Copied plugin snippet to clipboard.", "good");
+      return setStatus($("gsm-status"), "Copied plugins.py shim to clipboard.", "good");
     } catch (e) {
       return setStatus($("gsm-status"), String(e?.message || e || "Copy failed."), "bad");
     }
   }
+}
+
+async function gsmCopyHelper() {
+  setStatus($("gsm-status"), "Loading helper...", null);
+  const r = await api("GET", "/api/gsm/plugin-snippet");
+  if (!r.ok) return setStatus($("gsm-status"), r.error || "Could not load helper.", "bad");
+  const snippet = r.helper_snippet || "";
+  if (!snippet) return setStatus($("gsm-status"), "Helper snippet missing.", "bad");
+
+  try {
+    await navigator.clipboard.writeText(snippet);
+    return setStatus($("gsm-status"), "Copied tokei_live_sync.py to clipboard (create this file in your GSM folder).", "good");
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = snippet;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      return setStatus($("gsm-status"), "Copied tokei_live_sync.py to clipboard (create this file in your GSM folder).", "good");
+    } catch (e) {
+      return setStatus($("gsm-status"), String(e?.message || e || "Copy failed."), "bad");
+    }
+  }
+}
+
+async function gsmInstallHelper() {
+  setStatus($("gsm-status"), "Installing tokei_live_sync.py...", null);
+  const r = await api("POST", "/api/gsm/install-helper", {});
+  if (!r.ok) return setStatus($("gsm-status"), r.error || "Install failed.", "bad");
+  if (r.changed) {
+    const msg = r.backupPath ? `Installed. Backup: ${r.backupPath}` : "Installed.";
+    return setStatus($("gsm-status"), msg, "good");
+  }
+  return setStatus($("gsm-status"), "Already installed (no changes).", "good");
+}
+
+async function gsmRefreshStatus() {
+  const r = await api("GET", "/api/gsm/status");
+  if (!r.ok) {
+    $("gsm-status-detail").textContent = "";
+    return;
+  }
+
+  const parts = [];
+  parts.push(`Helper: ${r.helperExists ? "installed" : "missing"}`);
+  parts.push(`plugins.py: ${r.pluginExists ? (r.shimPresent ? "shim ok" : "needs shim") : "missing"}`);
+  parts.push(`gsm_live.sqlite: ${r.dbExists ? `found (${r.dbMtime || "mtime unknown"})` : "missing"}`);
+  $("gsm-status-detail").textContent = parts.join(" • ");
+}
+
+async function gsmInstall() {
+  setStatus($("gsm-status"), "Installing...", null);
+  const r = await api("POST", "/api/gsm/install-helper", {});
+  if (!r.ok) {
+    setStatus($("gsm-status"), r.error || "Install failed.", "bad");
+    await gsmRefreshStatus();
+    return;
+  }
+  const msg = r.changed ? "Installed tokei_live_sync.py. Next: add the plugins.py shim (Advanced)." : "Already installed.";
+  setStatus($("gsm-status"), msg, "good");
+  await gsmRefreshStatus();
 }
 
 async function gsmOpenFolder() {
@@ -417,6 +483,14 @@ async function gsmOpenPlugin() {
   const r = await api("POST", "/api/gsm/open-plugin-file", {});
   if (!r.ok) return setStatus($("gsm-status"), r.error || "Failed.", "bad");
   const msg = r.exists ? `Opened: ${r.pluginFile}` : `Opened (missing): ${r.pluginFile}`;
+  setStatus($("gsm-status"), msg, r.exists ? "good" : "bad");
+}
+
+async function gsmOpenHelper() {
+  setStatus($("gsm-status"), "Opening tokei_live_sync.py...", null);
+  const r = await api("POST", "/api/gsm/open-helper-file", {});
+  if (!r.ok) return setStatus($("gsm-status"), r.error || "Failed.", "bad");
+  const msg = r.exists ? `Opened: ${r.helperFile}` : `Opened (missing): ${r.helperFile}`;
   setStatus($("gsm-status"), msg, r.exists ? "good" : "bad");
 }
 
@@ -466,9 +540,12 @@ function wireUi() {
   $("anki-discovered-close").addEventListener("click", () => setVisible($("anki-discovered"), false));
   $("puppeteer-test").addEventListener("click", puppeteerTest);
   $("python-test").addEventListener("click", pythonTest);
-  $("gsm-copy").addEventListener("click", gsmCopySnippet);
+  $("gsm-install").addEventListener("click", gsmInstall);
   $("gsm-open-folder").addEventListener("click", gsmOpenFolder);
+  $("gsm-copy").addEventListener("click", gsmCopySnippet);
+  $("gsm-copy-helper").addEventListener("click", gsmCopyHelper);
   $("gsm-open-plugin").addEventListener("click", gsmOpenPlugin);
+  $("gsm-open-helper").addEventListener("click", gsmOpenHelper);
   $("logs-refresh").addEventListener("click", refreshLogs);
   $("run-now").addEventListener("click", runNow);
 
@@ -499,6 +576,7 @@ async function init() {
   await loadEnv();
   await loadToken();
   currentConfig = await loadConfig();
+  await gsmRefreshStatus();
   await refreshLatestStats();
   await refreshLogs();
 }

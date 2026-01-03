@@ -125,11 +125,23 @@
               GSM typically has a single <code>plugins.py</code>. If you already have one, paste the Tokei plugin code into your existing file (don't overwrite unless you intend to).
             </div>
             <div class="row">
-              <button id="gsm-copy" class="btn">Copy plugin snippet</button>
+              <button id="gsm-install" class="btn primary">Install GSM live sessions</button>
+              <button id="gsm-copy" class="btn">Copy plugins.py shim</button>
               <button id="gsm-open-folder" class="btn">Open GSM folder</button>
-              <button id="gsm-open-plugin" class="btn">Open plugins.py</button>
               <div id="gsm-status" class="status"></div>
             </div>
+            <div id="gsm-status-detail" class="hint"></div>
+            <details class="details">
+              <summary>Advanced</summary>
+              <div class="row">
+                <button id="gsm-copy-helper" class="btn">Copy tokei_live_sync.py</button>
+                <button id="gsm-open-plugin" class="btn">Open plugins.py</button>
+                <button id="gsm-open-helper" class="btn">Open tokei_live_sync.py</button>
+              </div>
+              <div class="hint">
+                Install creates <code>tokei_live_sync.py</code>. You still need to add the shim to your existing <code>plugins.py</code> so GSM calls it.
+              </div>
+            </details>
           </div>
 
           <div class="card full">

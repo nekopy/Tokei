@@ -18,9 +18,12 @@ you to re-open GSM.
 ## Install
 
 1) In GSM, enable user plugins (see GSM docs).
-2) Open your GSM plugin file:
+2) In `%APPDATA%\GameSentenceMiner\`, create a new file:
+   - `tokei_live_sync.py` (copy from `extras/gsm-plugin/tokei_live_sync.py`)
+3) Open your GSM plugin file:
    - `%APPDATA%\GameSentenceMiner\plugins.py`
-3) Replace its contents with `extras/gsm-plugin/plugins.py`, or copy/paste the contents.
+4) Paste the shim near the bottom so it can wrap your existing `main()` (copy from `extras/gsm-plugin/plugins.py`).
+   - The shim includes a fallback loader in case GSM doesn't add the plugins folder to Python's import path.
 
 ## Notes
 
