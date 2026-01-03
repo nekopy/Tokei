@@ -26,3 +26,4 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Fixed
 - `config.json` parsing now tolerates a UTF-8 BOM in both the Node loader (`Tokei.mjs`) and the Python pipeline (`tools/tokei_sync.py`).
+- GSM reconciliation no longer emits a warning when `gsm.db` is simply missing/behind for a day (reduces noisy `WARNINGS.txt` output).
