@@ -40,6 +40,7 @@
             <h2>Toggl token</h2>
             <div class="row">
               <input id="toggl-token" class="input" type="password" placeholder="Paste token (optional)" />
+              <button id="toggl-reveal" class="btn">Show</button>
               <button id="toggl-save" class="btn">Save</button>
             </div>
             <div class="hint">Stored in <code>toggl-token.txt</code>. Leave empty to clear.</div>
@@ -59,7 +60,18 @@
                 <input id="anki-enabled" type="checkbox" />
                 Enable built-in Anki snapshot exporter
               </label>
-              <input id="anki-output-dir" class="input" type="text" placeholder="output_dir (default hashi_exports)" />
+              <button id="anki-advanced-toggle" class="btn">Advanced</button>
+            </div>
+            <div id="anki-advanced" class="advanced" hidden>
+              <button id="anki-advanced-close" class="panel-close" type="button" title="Hide">×</button>
+              <div class="row">
+                <div class="hint">
+                  Output dir controls where Hashi-compatible exports are written. Leave as <code>hashi_exports</code> unless you know you need to change it.
+                </div>
+              </div>
+              <div class="row">
+                <input id="anki-output-dir" class="input" type="text" placeholder="output_dir (default hashi_exports)" />
+              </div>
             </div>
 
             <div class="rules">
@@ -80,15 +92,37 @@
               <div class="row">
                 <button id="rule-add" class="btn">Add rule</button>
                 <button id="config-save" class="btn primary">Save config.json</button>
+                <button id="config-discard" class="btn">Discard changes</button>
               </div>
               <div id="config-status" class="status"></div>
+            </div>
+
+            <div id="anki-discovered" class="discovered" hidden>
+              <button id="anki-discovered-close" class="panel-close" type="button" title="Hide">×</button>
+              <div class="hint">
+                Click a rule row to select it, then click items below to add them. Shift+click copies to clipboard.
+              </div>
+              <div class="discover-grid">
+                <div>
+                  <div class="subhead">Decks</div>
+                  <div id="anki-decks" class="chips"></div>
+                </div>
+                <div>
+                  <div class="subhead">Note types</div>
+                  <div id="anki-notetypes" class="chips"></div>
+                </div>
+                <div>
+                  <div class="subhead">Fields</div>
+                  <div id="anki-fields" class="chips"></div>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="card full">
             <h2>GSM live sessions (optional)</h2>
             <div class="hint">
-              GSM typically has a single <code>plugins.py</code>. If you already have one, paste the Tokei plugin code into your existing file (don’t overwrite unless you intend to).
+              GSM typically has a single <code>plugins.py</code>. If you already have one, paste the Tokei plugin code into your existing file (don't overwrite unless you intend to).
             </div>
             <div class="row">
               <button id="gsm-copy" class="btn">Copy plugin snippet</button>
@@ -138,12 +172,90 @@
       </section>
 
       <section id="panel-logs" class="panel">
-        <div class="card">
-          <h2>Runtime log</h2>
-          <div class="row">
-            <button id="logs-refresh" class="btn">Refresh</button>
+        <div class="grid">
+          <div class="card">
+            <h2>Runtime log</h2>
+            <div class="row">
+              <button id="logs-refresh" class="btn">Refresh</button>
+            </div>
+            <pre id="runtime-log" class="mono"></pre>
           </div>
-          <pre id="runtime-log" class="mono"></pre>
+
+          <div class="card">
+            <h2>Getting started</h2>
+            <div class="hint">
+              Use Setup once, then you mostly live on the Run tab. The Runtime log is only for troubleshooting.
+            </div>
+
+            <div class="subhead">Prerequisites</div>
+            <div class="hint">
+              - Install Python and make sure <code>python --version</code> works (Anki snapshot/export uses Python).
+            </div>
+            <div class="hint">
+              - Have an Anki profile on this machine (the exporter reads your profile <code>collection.anki2</code>).
+            </div>
+            <div class="hint">
+              - PNG reports: Electron builds bundle Puppeteer + a browser. You can verify it with “Test Puppeteer PNG”.
+            </div>
+
+            <div class="subhead">Step 1: Toggl</div>
+            <div class="hint">
+              Paste your Toggl API token and click Save. Use Show/Hide to verify it.
+            </div>
+            <div class="hint">
+              The token is stored in <code>toggl-token.txt</code> under <code>%APPDATA%\\Tokei</code>.
+            </div>
+
+            <div class="subhead">Step 2: Anki snapshot rules (retention + review totals)</div>
+            <div class="hint">
+              Enable “built-in Anki snapshot exporter”, then add one or more rules. Each rule defines which decks and note field Tokei uses for Anki stats.
+            </div>
+            <div class="hint">
+              - Click a rule row to select it (highlighted).
+            </div>
+            <div class="hint">
+              - Click “Discover decks/fields” to load lists, then click items to add them to the selected rule. Shift+click copies.
+            </div>
+            <div class="hint">
+              - Deck paths use <code>Deck::Subdeck</code> format. Multiple decks and note types per rule are comma-separated.
+            </div>
+            <div class="hint">
+              - Target field is the note field that contains what you’re tracking (for example <code>Expression</code>).
+            </div>
+            <div class="hint">
+              When you’re done, click “Save config.json”. This writes <code>config.json</code> under <code>%APPDATA%\\Tokei</code>.
+            </div>
+
+            <div class="subhead">Step 3: Validate (recommended)</div>
+            <div class="hint">
+              Run these once to confirm your machine is ready:
+              Check Python, Test export, and Test Puppeteer PNG.
+            </div>
+
+            <div class="subhead">Step 4: Run reports</div>
+            <div class="hint">
+              Go to the Run tab and click Run now.
+              “Overwrite today’s report” updates today’s existing report; “Create a new report” makes a new numbered report.
+            </div>
+            <div class="hint">
+              Use “Open output folder” / “Open latest HTML” to view results. If something fails, check the Runtime log and any WARNINGS.txt next to your report.
+            </div>
+            <details class="details">
+              <summary>Advanced</summary>
+              <div class="hint">
+                - Anki output dir: defaults to <code>hashi_exports</code> (recommended). Change only if you know why.
+              </div>
+              <div class="hint">
+                - GSM live sessions: optional. It exports “today session totals” to <code>%TOKEI_USER_ROOT%\\cache\\gsm_live.sqlite</code> while GSM is running.
+              </div>
+              <div class="hint">
+                - If you installed both the CLI and Electron builds, both typically share <code>%APPDATA%\\Tokei</code> via <code>TOKEI_USER_ROOT</code>.
+              </div>
+              <div class="hint">
+                - Optional Anki producer: you can install the Hashi Anki add-on instead, and then disable the built-in snapshot exporter.
+              </div>
+            </details>
+          </div>
         </div>
       </section>
     </main>

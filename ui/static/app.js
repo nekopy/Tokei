@@ -20,10 +20,36 @@ function setStatus(el, msg, kind) {
   if (kind) el.classList.add(kind);
 }
 
+let activeRuleRow = null;
+let discoveredAnki = null;
+
 function selectTab(name) {
   for (const t of ["setup", "run", "logs"]) {
     $(`tab-${t}`).classList.toggle("active", t === name);
     $(`panel-${t}`).classList.toggle("active", t === name);
+  }
+}
+
+async function copyText(text) {
+  const value = String(text ?? "");
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = value;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -45,7 +71,18 @@ function ruleRow(rule, onRemove) {
   tr.querySelector(".subdecks").checked = rule?.include_subdecks !== false;
   tr.querySelector(".mature").value = String(rule?.mature_interval_days ?? 21);
   tr.querySelector(".remove").addEventListener("click", () => onRemove(tr));
+
+  tr.addEventListener("click", (e) => {
+    if (e.target && e.target.closest && e.target.closest("button.remove")) return;
+    setActiveRuleRow(tr);
+  });
+
   return tr;
+}
+
+function setActiveRuleRow(tr) {
+  activeRuleRow = tr;
+  for (const row of $("rules-body").querySelectorAll("tr")) row.classList.toggle("active-row", row === tr);
 }
 
 function readRulesFromTable() {
@@ -84,6 +121,139 @@ function populateRulesTable(rules) {
   const onRemove = (tr) => tr.remove();
   const list = Array.isArray(rules) && rules.length ? rules : [{ rule_id: "default", deck_paths: [], include_subdecks: true, note_types: [], target_field: "", mature_interval_days: 21 }];
   for (const r of list) body.appendChild(ruleRow(r, onRemove));
+  const first = body.querySelector("tr");
+  if (first) setActiveRuleRow(first);
+}
+
+function setVisible(el, visible) {
+  el.hidden = !visible;
+}
+
+function toggleVisible(el) {
+  el.hidden = !el.hidden;
+}
+
+function normalizeList(v) {
+  if (!v) return [];
+  if (Array.isArray(v)) return v;
+  return [];
+}
+
+function makeChip(label, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip";
+  b.textContent = label;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function parseCommaList(s) {
+  return String(s || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function setCommaListInput(input, values) {
+  const unique = [];
+  const seen = new Set();
+  for (const v of values) {
+    const k = v.trim();
+    if (!k) continue;
+    const key = k.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(k);
+  }
+  input.value = unique.join(", ");
+}
+
+function ensureActiveRow() {
+  if (activeRuleRow && activeRuleRow.isConnected) return activeRuleRow;
+  const first = $("rules-body").querySelector("tr");
+  if (first) setActiveRuleRow(first);
+  return activeRuleRow;
+}
+
+function renderDiscoveredAnki(payload) {
+  discoveredAnki = payload && payload.ok ? payload : null;
+  const box = $("anki-discovered");
+  if (!discoveredAnki) {
+    box.hidden = true;
+    $("anki-decks").innerHTML = "";
+    $("anki-notetypes").innerHTML = "";
+    $("anki-fields").innerHTML = "";
+    return;
+  }
+
+  const decks = normalizeList(discoveredAnki.decks).map((d) => String(d?.name || "")).filter(Boolean);
+  const noteTypes = normalizeList(discoveredAnki.note_types).map((nt) => String(nt?.name || "")).filter(Boolean);
+  const fields = [];
+  for (const nt of normalizeList(discoveredAnki.note_types)) {
+    for (const f of normalizeList(nt?.fields)) fields.push(String(f || ""));
+  }
+  const uniqueFields = [...new Set(fields.map((x) => x.trim()).filter(Boolean).map((x) => x))].sort((a, b) => a.localeCompare(b));
+
+  $("anki-decks").innerHTML = "";
+  $("anki-notetypes").innerHTML = "";
+  $("anki-fields").innerHTML = "";
+
+  for (const d of decks) {
+    $("anki-decks").appendChild(
+      makeChip(d, async (e) => {
+        if (e.shiftKey) {
+          const ok = await copyText(d);
+          setStatus($("anki-status"), ok ? `Copied deck: ${d}` : "Copy failed.", ok ? "good" : "bad");
+          return;
+        }
+        const row = ensureActiveRow();
+        if (!row) return;
+        const input = row.querySelector(".decks");
+        const curr = parseCommaList(input.value);
+        curr.push(d);
+        setCommaListInput(input, curr);
+        setStatus($("anki-status"), `Added deck to rule: ${d}`, "good");
+      })
+    );
+  }
+
+  for (const nt of noteTypes) {
+    $("anki-notetypes").appendChild(
+      makeChip(nt, async (e) => {
+        if (e.shiftKey) {
+          const ok = await copyText(nt);
+          setStatus($("anki-status"), ok ? `Copied note type: ${nt}` : "Copy failed.", ok ? "good" : "bad");
+          return;
+        }
+        const row = ensureActiveRow();
+        if (!row) return;
+        const input = row.querySelector(".notetypes");
+        const curr = parseCommaList(input.value);
+        curr.push(nt);
+        setCommaListInput(input, curr);
+        setStatus($("anki-status"), `Added note type to rule: ${nt}`, "good");
+      })
+    );
+  }
+
+  for (const f of uniqueFields) {
+    $("anki-fields").appendChild(
+      makeChip(f, async (e) => {
+        if (e.shiftKey) {
+          const ok = await copyText(f);
+          setStatus($("anki-status"), ok ? `Copied field: ${f}` : "Copy failed.", ok ? "good" : "bad");
+          return;
+        }
+        const row = ensureActiveRow();
+        if (!row) return;
+        row.querySelector(".field").value = f;
+        setStatus($("anki-status"), `Set target field: ${f}`, "good");
+      })
+    );
+  }
+
+  box.hidden = false;
 }
 
 async function loadEnv() {
@@ -109,6 +279,26 @@ async function saveToken() {
   else setStatus($("toggl-status"), r.error || "Failed.", "bad");
 }
 
+function toggleTogglReveal() {
+  const input = $("toggl-token");
+  const btn = $("toggl-reveal");
+  const reveal = input.type === "password";
+  input.type = reveal ? "text" : "password";
+  btn.textContent = reveal ? "Hide" : "Show";
+}
+
+function discardConfigChanges() {
+  const ok = confirm("Discard unsaved changes and reload config.json from disk?");
+  if (!ok) return;
+  setStatus($("config-status"), "Reloading...", null);
+  loadConfig()
+    .then((cfg) => {
+      if (cfg) currentConfig = cfg;
+      setStatus($("config-status"), "Reloaded.", "good");
+    })
+    .catch((e) => setStatus($("config-status"), String(e?.message || e), "bad"));
+}
+
 async function loadConfig() {
   const r = await api("GET", "/api/config");
   if (!r.ok) {
@@ -119,7 +309,9 @@ async function loadConfig() {
   const snap = cfg.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
   $("anki-enabled").checked = snap.enabled === true;
   $("anki-output-dir").value = typeof snap.output_dir === "string" ? snap.output_dir : "hashi_exports";
+  setVisible($("anki-advanced"), false);
   populateRulesTable(Array.isArray(snap.rules) ? snap.rules : []);
+  renderDiscoveredAnki(null);
   return cfg;
 }
 
@@ -141,10 +333,19 @@ async function ankiDiscover() {
   setStatus($("anki-status"), "Discovering...", null);
   const r = await api("POST", "/api/anki/discover", {});
   if (r.ok) {
+    const ok = r.payload?.ok === true;
+    if (!ok) {
+      setStatus($("anki-status"), r.payload?.error || "Discover failed.", "bad");
+      renderDiscoveredAnki(null);
+      return;
+    }
     const nDecks = r.payload?.decks?.length ?? 0;
-    setStatus($("anki-status"), `OK (${nDecks} decks discovered).`, "good");
+    const nNts = r.payload?.note_types?.length ?? 0;
+    setStatus($("anki-status"), `OK (${nDecks} decks, ${nNts} note types). Click a rule row then click items to add.`, "good");
+    renderDiscoveredAnki(r.payload);
   } else {
     setStatus($("anki-status"), r.stderr || "Discover failed.", "bad");
+    renderDiscoveredAnki(null);
   }
 }
 
@@ -256,9 +457,13 @@ function wireUi() {
   $("tab-run").addEventListener("click", () => selectTab("run"));
   $("tab-logs").addEventListener("click", () => selectTab("logs"));
 
+  $("toggl-reveal").addEventListener("click", toggleTogglReveal);
   $("toggl-save").addEventListener("click", saveToken);
   $("anki-discover").addEventListener("click", ankiDiscover);
   $("anki-test-export").addEventListener("click", ankiTestExport);
+  $("anki-advanced-toggle").addEventListener("click", () => toggleVisible($("anki-advanced")));
+  $("anki-advanced-close").addEventListener("click", () => setVisible($("anki-advanced"), false));
+  $("anki-discovered-close").addEventListener("click", () => setVisible($("anki-discovered"), false));
   $("puppeteer-test").addEventListener("click", puppeteerTest);
   $("python-test").addEventListener("click", pythonTest);
   $("gsm-copy").addEventListener("click", gsmCopySnippet);
@@ -277,6 +482,8 @@ function wireUi() {
     await saveConfig(currentConfig);
     currentConfig = (await loadConfig()) || currentConfig;
   });
+
+  $("config-discard").addEventListener("click", discardConfigChanges);
 
   $("open-output").addEventListener("click", async () => {
     await api("POST", "/api/open-output", {});
