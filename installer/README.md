@@ -3,6 +3,19 @@
 This installer is app-only. It installs the PyInstaller build into Program Files and
 creates shortcuts. It does not install Node.js, Puppeteer, or any external tools.
 
+## Also: Electron UI installer (electron-builder / NSIS)
+
+Tokei also has a separate Windows installer for the **desktop UI (Electron)**. This one is built via npm and is the
+installer you distribute if you want the GUI-first experience (setup wizard + “Run now”).
+
+- Build: `npm run dist:win`
+- Output folder: `dist-installer-electron\`
+- The installer: `dist-installer-electron\Tokei Setup <version>.exe`
+- Portable/unpacked app folder (for local testing): `dist-installer-electron\win-unpacked\`
+
+This Electron installer does not overwrite the Inno Setup install by default (different install roots), but both share
+`%APPDATA%\Tokei\` via `TOKEI_USER_ROOT` unless you intentionally change that behavior.
+
 ## Build Prerequisites
 
 - Inno Setup 6 installed (`ISCC.exe` available in PATH)

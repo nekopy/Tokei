@@ -1,14 +1,68 @@
 {
   "name": "tokei",
   "version": "0.3.0",
+  "description": "Tokei: Dashboard Sync",
+  "author": "EyePanda",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "bump:patch": "node tools/bump_version.mjs patch",
     "bump:minor": "node tools/bump_version.mjs minor",
-    "bump:major": "node tools/bump_version.mjs major"
+    "bump:major": "node tools/bump_version.mjs major",
+    "prep:puppeteer": "node tools/prep_puppeteer_cache.mjs",
+    "ui:web": "node ui/tokei_ui.mjs",
+    "ui:electron": "node electron/launch.mjs",
+    "dist:win": "node tools/prep_puppeteer_cache.mjs && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "puppeteer": "^24.34.0"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.tokei.app",
+    "productName": "Tokei",
+    "icon": "assets/tokei.ico",
+    "asar": false,
+    "files": [
+      "Tokei.mjs",
+      "electron/**",
+      "ui/**",
+      "tools/**",
+      "src/**",
+      "design/**",
+      "assets/**",
+      "extras/gsm-plugin/**",
+      "puppeteer-cache/**",
+      "package.json",
+      "!**/.dev/**",
+      "!**/.devdata/**",
+      "!**/cache/**",
+      "!**/output/**",
+      "!**/logs/**",
+      "!**/.git/**",
+      "!**/.venv/**",
+      "!**/.venv-lemmas/**",
+      "!**/node_modules/**/{CHANGELOG.md,README.md,readme.md,README.txt,readme.txt}"
+    ],
+    "directories": {
+      "output": "dist-installer-electron"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "perMachine": false,
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tokei"
+    }
   }
 }

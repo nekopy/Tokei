@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tokei</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="title">
+        <div class="app">Tokei</div>
+        <div class="subtitle">Setup + validation + run</div>
+      </div>
+      <nav>
+        <button id="tab-setup" class="tab active">Setup</button>
+        <button id="tab-run" class="tab">Run</button>
+        <button id="tab-logs" class="tab">Logs</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="panel-setup" class="panel active">
+        <div class="grid">
+          <div class="card">
+            <h2>Environment</h2>
+            <div class="kv">
+              <div class="k">App root</div>
+              <div class="v"><code id="env-appRoot">...</code></div>
+              <div class="k">User root</div>
+              <div class="v"><code id="env-userRoot">...</code></div>
+              <div class="k">Platform</div>
+              <div class="v"><code id="env-platform">...</code></div>
+              <div class="k">Node</div>
+              <div class="v"><code id="env-node">...</code></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Toggl token</h2>
+            <div class="row">
+              <input id="toggl-token" class="input" type="password" placeholder="Paste token (optional)" />
+              <button id="toggl-save" class="btn">Save</button>
+            </div>
+            <div class="hint">Stored in <code>toggl-token.txt</code>. Leave empty to clear.</div>
+            <div id="toggl-status" class="status"></div>
+          </div>
+
+          <div class="card full">
+            <h2>Anki snapshot rules</h2>
+            <div class="row">
+              <button id="anki-discover" class="btn">Discover decks/fields</button>
+              <button id="anki-test-export" class="btn">Test export</button>
+              <div id="anki-status" class="status"></div>
+            </div>
+
+            <div class="row">
+              <label class="check">
+                <input id="anki-enabled" type="checkbox" />
+                Enable built-in Anki snapshot exporter
+              </label>
+              <input id="anki-output-dir" class="input" type="text" placeholder="output_dir (default hashi_exports)" />
+            </div>
+
+            <div class="rules">
+              <table id="rules-table">
+                <thead>
+                  <tr>
+                    <th>Rule ID</th>
+                    <th>Deck paths (comma-separated)</th>
+                    <th>Target field</th>
+                    <th>Note types (optional, comma-separated)</th>
+                    <th>Subdecks</th>
+                    <th>Mature days</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="rules-body"></tbody>
+              </table>
+              <div class="row">
+                <button id="rule-add" class="btn">Add rule</button>
+                <button id="config-save" class="btn primary">Save config.json</button>
+              </div>
+              <div id="config-status" class="status"></div>
+            </div>
+          </div>
+
+          <div class="card full">
+            <h2>GSM live sessions (optional)</h2>
+            <div class="hint">
+              GSM typically has a single <code>plugins.py</code>. If you already have one, paste the Tokei plugin code into your existing file (don’t overwrite unless you intend to).
+            </div>
+            <div class="row">
+              <button id="gsm-copy" class="btn">Copy plugin snippet</button>
+              <button id="gsm-open-folder" class="btn">Open GSM folder</button>
+              <button id="gsm-open-plugin" class="btn">Open plugins.py</button>
+              <div id="gsm-status" class="status"></div>
+            </div>
+          </div>
+
+          <div class="card full">
+            <h2>Validation</h2>
+            <div class="row">
+              <button id="python-test" class="btn">Check Python</button>
+              <div id="python-status" class="status"></div>
+            </div>
+            <div class="row">
+              <button id="puppeteer-test" class="btn">Test Puppeteer PNG</button>
+              <div id="puppeteer-status" class="status"></div>
+            </div>
+            <div class="hint">Writes a small test HTML into <code>cache/</code> and a PNG into <code>output/</code>.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-run" class="panel">
+        <div class="card">
+          <h2>Run</h2>
+          <div class="row">
+            <select id="run-mode" class="input">
+              <option value="overwrite">Overwrite today's report</option>
+              <option value="new">Create a new report</option>
+            </select>
+            <button id="run-now" class="btn primary">Run now</button>
+          </div>
+          <div id="run-status" class="status"></div>
+          <div class="row">
+            <button id="open-output" class="btn">Open output folder</button>
+            <button id="open-html" class="btn">Open latest HTML</button>
+          </div>
+          <pre id="run-output" class="mono"></pre>
+        </div>
+
+        <div class="card">
+          <h2>Latest stats</h2>
+          <pre id="latest-stats" class="mono"></pre>
+        </div>
+      </section>
+
+      <section id="panel-logs" class="panel">
+        <div class="card">
+          <h2>Runtime log</h2>
+          <div class="row">
+            <button id="logs-refresh" class="btn">Refresh</button>
+          </div>
+          <pre id="runtime-log" class="mono"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

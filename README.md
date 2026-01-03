@@ -2,7 +2,7 @@
 
 Tokei is currently in alpha. This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
 
-Note: Tokei currently runs as a console app (CLI). A UI is planned.
+Note: Tokei runs as a console app (CLI), and also includes a setup-first UI (web + Electron wrapper).
 
 # Tokei (dashboard sync)
 
@@ -35,9 +35,11 @@ It caches merged snapshots into cache/tokei_cache.sqlite, then renders:
 
 ### Quick start (most users)
 
-1) Install Node.js 18+
-2) Run Tokei from the Start Menu shortcut
+1) Install Tokei (Electron UI build) and run it from the Start Menu shortcut
+2) Install Python and ensure `python --version` works (Tokei's Anki snapshot/export uses Python)
 3) During first run, use the built-in Anki snapshot setup to select decks + fields for Anki retention/review stats
+4) Optional: run `Tokei-UI.bat` any time to edit config, validate Anki export, test PNG rendering, and run reports (web UI)
+   - Dev/electron: `npm run ui:electron`
 
 Optional (advanced): install the Hashi Anki add-on instead of using built-in snapshots:
 - In Anki: `Tools > Add-ons > Get Add-ons...` and enter `1132527238`
@@ -49,18 +51,9 @@ Tokei will generate HTML reports by default. PNG reports require additional setu
 
 PNG reports are rendered using Puppeteer via Node.js.
 
-To enable PNG output:
+Electron UI builds bundle Puppeteer (and the required browser) so PNG rendering works without extra installs.
 
-1) Install Node.js 18+
-2) Open a terminal in the Tokei directory
-   (for example: `C:\Program Files\Tokei\`)
-3) Run:
-
-    npm install puppeteer
-
-Tokei expects Puppeteer to be available at:
-
-    <Tokei directory>\node_modules\puppeteer
+If you are running from source / a portable folder, install Node.js 18+ and run `npm install` in the Tokei folder so `node_modules\puppeteer` exists.
 
 If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG output will fail with a warning.
 
@@ -90,6 +83,9 @@ This explicit setup is intentional for the alpha release to maximize PNG reliabi
   - Safe to run multiple times (asks for confirmation)
 - Tokei.bat
   - Legacy wrapper that calls run.bat
+- Tokei-UI.bat
+  - Launches the local setup/run UI in your browser (web UI)
+  - If you are using the Electron build: use the installed desktop app instead
 - Reset-Tokei.bat
   - Deletes cache/ and output/
   - Resets config.json back to defaults
@@ -158,6 +154,22 @@ Run requirements for the built exe:
 - Node.js 18+ is on PATH
 - `node_modules\puppeteer` exists in the same folder as Tokei.exe (run Setup-Environment.bat there)
 - `config.json` exists (run Setup-Tokei.bat there)
+
+## Build Windows installer (Electron UI, Windows-only)
+
+This produces a per-user Windows installer for the desktop UI (Electron).
+
+Requirements:
+- Node.js 18+
+- `npm install`
+- Python available on PATH (Tokei's pipeline calls Python)
+- Build machine must be allowed to create symlinks (Windows Developer Mode enabled, or run the build in an elevated terminal); otherwise `electron-builder` may fail extracting `winCodeSign`.
+
+Build:
+- `npm run dist:win`
+
+Output:
+- `dist-installer-electron\\`
 
 ## Re-running guidance
 
