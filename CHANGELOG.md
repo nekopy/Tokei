@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning when possible.
 
+## 0.5.0 - 2026-01-04
+
+### Added
+- Sources tab in the UI for enabling/disabling sources and quick launch actions (Mokuro/Ttsu web, GSM exe, known.csv helpers).
+- Known CSV import from the UI (copies to `TOKEI_USER_ROOT/data/known.csv` for Phase 2 ingestion).
+- Optional per-source disable toggles (`mokuro.enabled`, `ttsu.enabled`, `gsm.enabled`) to hide the Reading section for unused sources.
+
+### Fixed
+- GSM Launch in the UI now targets the default installed exe path under `%LOCALAPPDATA%` (with a clearer fallback when missing).
+
 ## 0.4.0 - 2026-01-03
 
 ### Added
@@ -11,7 +21,6 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - New UI Run flow: separate **Sync** and **Generate report** actions with a “Sync before report” checkbox.
 - New CLI flags: `--sync-only` and `--no-sync` for separating cache refresh from report rendering.
 - Improved “At a glance” UI summary for latest sync/report.
-- Optional per-source disable toggles (`mokuro.enabled`, `ttsu.enabled`, `gsm.enabled`) to hide Reading sections for unused sources.
 
 ### Fixed
 

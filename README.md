@@ -49,6 +49,14 @@ In the UI Run tab:
 - Use **Sync** to refresh caches and update `latest_sync.json` (no report generated)
 - Use **Generate report** to render HTML/PNG; by default it syncs first, with a checkbox to render from the latest sync snapshot
 
+In the UI Sources tab:
+- Toggle reading sources on/off (`mokuro.enabled`, `ttsu.enabled`, `gsm.enabled`) to include/exclude them from the report Reading section
+- Quick launch:
+  - Mokuro: opens `https://reader.mokuro.app`
+  - Ttsu: opens `https://reader.ttsu.app`
+  - GSM: launches the default installed exe under `%LOCALAPPDATA%\\Programs\\gamesentenceminer\\GameSentenceMiner.exe`
+- Known CSV: import a CSV file into `TOKEI_USER_ROOT/data/known.csv` (then run Sync)
+
 Optional (advanced): install the Hashi Anki add-on instead of using built-in snapshots:
 - In Anki: `Tools > Add-ons > Get Add-ons...` and enter `1132527238`
 - Link: https://ankiweb.net/shared/info/1132527238
