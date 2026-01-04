@@ -81,6 +81,10 @@ function getLatestStatsPath() {
   return path.join(userRoot, "cache", "latest_stats.json");
 }
 
+function getLatestSyncPath() {
+  return path.join(userRoot, "cache", "latest_sync.json");
+}
+
 function getGsmPluginFolder() {
   const appdata = process.env.APPDATA;
   if (!appdata) return null;
@@ -258,6 +262,7 @@ async function handleApi(req, res) {
       tokenPath: getTokenPath(),
       runtimeLogPath: getRuntimeLogPath(),
       latestStatsPath: getLatestStatsPath(),
+      latestSyncPath: getLatestSyncPath(),
       outRoot,
       htmlDir,
       latestHtmlPath: htmlPath,
@@ -332,6 +337,12 @@ async function handleApi(req, res) {
     const statsPath = getLatestStatsPath();
     const r = safeReadJson(statsPath);
     return json(res, 200, { ok: r.ok, path: statsPath, error: r.error, stats: r.value });
+  }
+
+  if (req.method === "GET" && p === "/api/latest-sync") {
+    const syncPath = getLatestSyncPath();
+    const r = safeReadJson(syncPath);
+    return json(res, 200, { ok: r.ok, path: syncPath, error: r.error, sync: r.value });
   }
 
   if (req.method === "POST" && p === "/api/anki/discover") {
@@ -591,6 +602,65 @@ async function handleApi(req, res) {
     }
   }
 
+  if (req.method === "POST" && p === "/api/sync") {
+    const args = ["Tokei.mjs", "--no-setup", "--no-pause", "--sync-only"];
+
+    const script = path.join(appRoot, "Tokei.mjs");
+    const nodeArgs = [script, ...args.slice(1)];
+    const env = { ...getNodeRunnerEnv(), TOKEI_APP_ROOT: appRoot, TOKEI_USER_ROOT: userRoot };
+    const r = await runProcess(process.execPath, nodeArgs, { cwd: appRoot, env });
+
+    const latestSync = safeReadJson(getLatestSyncPath()).value;
+
+    return json(res, 200, {
+      ok: r.code === 0,
+      code: r.code,
+      stdout: (r.stdout || "").trim(),
+      stderr: (r.stderr || "").trim(),
+      latest_sync: latestSync,
+    });
+  }
+
+  if (req.method === "POST" && p === "/api/generate-report") {
+    const body = await readBody(req);
+    let parsed = null;
+    try {
+      parsed = JSON.parse(body || "{}");
+    } catch {
+      parsed = {};
+    }
+
+    const mode = String(parsed?.mode || "overwrite");
+    const syncBefore = parsed?.sync_before_report === false ? false : true;
+
+    const args = ["Tokei.mjs", "--no-setup", "--no-pause"];
+    if (!syncBefore) args.push("--no-sync");
+    if (mode === "new") args.push("--allow-same-day");
+    if (mode === "overwrite") args.push("--overwrite-today");
+
+    const script = path.join(appRoot, "Tokei.mjs");
+    const nodeArgs = [script, ...args.slice(1)];
+    const env = { ...getNodeRunnerEnv(), TOKEI_APP_ROOT: appRoot, TOKEI_USER_ROOT: userRoot };
+    const r = await runProcess(process.execPath, nodeArgs, { cwd: appRoot, env });
+
+    const latest = safeReadJson(getLatestStatsPath()).value;
+    const latestSync = safeReadJson(getLatestSyncPath()).value;
+    const cfg = safeReadJson(getConfigPath()).value || {};
+    const statsPath = resolveHashiStatsPath(cfg);
+    const ankiStats = statsPath ? safeReadJson(statsPath).value : null;
+    const exportedAt = ankiStats?.meta?.exported_at || null;
+
+    return json(res, 200, {
+      ok: r.code === 0,
+      code: r.code,
+      stdout: (r.stdout || "").trim(),
+      stderr: (r.stderr || "").trim(),
+      latest_stats: latest,
+      latest_sync: latestSync,
+      anki_exported_at: exportedAt,
+    });
+  }
+
   if (req.method === "POST" && p === "/api/run") {
     const body = await readBody(req);
     let parsed = null;
@@ -621,6 +691,7 @@ async function handleApi(req, res) {
       stdout: (r.stdout || "").trim(),
       stderr: (r.stderr || "").trim(),
       latest_stats: latest,
+      latest_sync: safeReadJson(getLatestSyncPath()).value,
       anki_exported_at: exportedAt,
     });
   }

@@ -1445,6 +1445,16 @@ def main(argv: list[str]) -> int:
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--sync-only",
+        action="store_true",
+        help="Refresh caches + write latest_sync.json, without creating a report snapshot.",
+    )
+    parser.add_argument(
+        "--no-sync",
+        action="store_true",
+        help="Generate a report snapshot from latest_sync.json, without refreshing sources/caches.",
+    )
     parser.add_argument("--allow-same-day", action="store_true")
     parser.add_argument(
         "--overwrite-today",
@@ -1463,6 +1473,9 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv[1:])
 
+    if args.sync_only and args.no_sync:
+        raise ConfigError("--sync-only and --no-sync are mutually exclusive.")
+
     env_root = os.environ.get("TOKEI_USER_ROOT")
     root = Path(env_root).resolve() if env_root else Path(__file__).resolve().parents[1]
     config_path = root / "config.json"
@@ -1470,6 +1483,7 @@ def main(argv: list[str]) -> int:
     cache_dir.mkdir(parents=True, exist_ok=True)
     db_path = cache_dir / "tokei_cache.sqlite"
     out_stats_path = cache_dir / "latest_stats.json"
+    out_sync_path = cache_dir / "latest_sync.json"
 
     cfg = _load_config(config_path)
 
@@ -1535,10 +1549,11 @@ def main(argv: list[str]) -> int:
     if args.phase2_only:
         return 0
 
-    api_token = _get_api_token(root)
-
-    # Ensure token works and /me is reachable (user requested /me usage).
-    _fetch_json("https://api.track.toggl.com/api/v9/me", api_token)
+    api_token: str | None = None
+    if not args.no_sync:
+        api_token = _get_api_token(root)
+        # Ensure token works and /me is reachable (user requested /me usage).
+        _fetch_json("https://api.track.toggl.com/api/v9/me", api_token)
 
     con = sqlite3.connect(str(db_path))
     try:
@@ -1559,7 +1574,7 @@ def main(argv: list[str]) -> int:
             """,
             (today.isoformat(),),
         ).fetchone()
-        if prev_today and not args.allow_same_day and not args.overwrite_today:
+        if (not args.sync_only) and prev_today and not args.allow_same_day and not args.overwrite_today:
             payload = {
                 "status": "already_generated",
                 "report_no": int(prev_today[0]),
@@ -1569,8 +1584,32 @@ def main(argv: list[str]) -> int:
             print(json.dumps(payload, ensure_ascii=False))
             return 2
 
-        _update_toggl_cache(con, cfg, api_token=api_token, tz=tz)
-        con.commit()
+        latest_report = con.execute(
+            """
+            SELECT run_id, generated_at, report_day
+            FROM snapshots
+            ORDER BY run_id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        def read_latest_sync_snapshot() -> dict[str, Any] | None:
+            if not out_sync_path.exists():
+                return None
+            try:
+                return json.loads(out_sync_path.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+
+        if args.no_sync:
+            snap = read_latest_sync_snapshot()
+            if not isinstance(snap, dict):
+                raise ConfigError(f"No latest sync snapshot found at: {out_sync_path} (run Sync first).")
+        else:
+            # Regular behavior: refresh Toggl cache (and therefore all derived values).
+            assert api_token is not None
+            _update_toggl_cache(con, cfg, api_token=api_token, tz=tz)
+            con.commit()
 
         sum_start = cfg.toggl_start_date
         if cfg.toggl_start_date == date(1970, 1, 1):
@@ -1581,42 +1620,94 @@ def main(argv: list[str]) -> int:
                 except Exception:
                     sum_start = cfg.toggl_start_date
 
-        lifetime_seconds = int(
-            con.execute(
-                "SELECT COALESCE(SUM(total_seconds), 0) FROM toggl_daily WHERE day >= ? AND day <= ?",
-                (sum_start.isoformat(), today.isoformat()),
-            ).fetchone()[0]
-            or 0
-        )
-        lifetime_seconds += int(cfg.toggl_baseline_seconds)
-        today_seconds = int(
-            con.execute(
-                "SELECT COALESCE(total_seconds, 0) FROM toggl_daily WHERE day=?",
-                (today.isoformat(),),
-            ).fetchone()[0]
-            or 0
-        )
-        breakdown_rows = con.execute(
-            """
-            SELECT description, seconds
-            FROM toggl_daily_desc
-            WHERE day=?
-            ORDER BY seconds DESC, description
-            """,
-            (today.isoformat(),),
-        ).fetchall()
-        today_breakdown = [
-            {"desc": str(desc), "seconds": int(sec or 0)} for (desc, sec) in breakdown_rows
-        ]
-
         warnings: list[str] = []
-        tokei_surface_words = _read_tokei_surface_words(root)
-        known_lemmas = int(tokei_surface_words)
-        known_inflections = int(tokei_surface_words)
-        manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
-        ttsu_chars_total = _read_ttsu_chars(cfg, warnings=warnings)
-        gsm_chars_total = _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings)
-        anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
+
+        if args.no_sync:
+            synced_at = snap.get("synced_at") if isinstance(snap.get("synced_at"), str) else None
+            if not synced_at:
+                warnings.append(f"latest_sync.json missing synced_at: {out_sync_path}")
+
+            summary = snap.get("summary") if isinstance(snap.get("summary"), dict) else {}
+            today_imm = snap.get("today_immersion") if isinstance(snap.get("today_immersion"), dict) else {}
+
+            try:
+                lifetime_seconds = int(round(float(summary.get("immersion_total_hours") or 0.0) * 3600.0))
+            except Exception:
+                lifetime_seconds = 0
+
+            try:
+                today_seconds = int(today_imm.get("total_seconds") or 0)
+            except Exception:
+                today_seconds = 0
+            today_breakdown = (
+                [x for x in (today_imm.get("entries") or []) if isinstance(x, dict)]
+                if isinstance(today_imm.get("entries"), list)
+                else []
+            )
+
+            warnings.extend(
+                [str(x) for x in (snap.get("warnings") or [])]
+                if isinstance(snap.get("warnings"), list)
+                else []
+            )
+
+            def _int_summary(key: str) -> int:
+                try:
+                    return int(summary.get(key) or 0)
+                except Exception:
+                    return 0
+
+            def _float_summary(key: str) -> float:
+                try:
+                    return float(summary.get(key) or 0.0)
+                except Exception:
+                    return 0.0
+
+            tokei_surface_words = _int_summary("tokei_surface_words")
+            known_lemmas = _int_summary("known_lemmas")
+            known_inflections = _int_summary("known_inflections")
+            manga_chars_total = _int_summary("manga_chars_total")
+            ttsu_chars_total = _int_summary("ttsu_chars_total")
+            gsm_chars_total = _int_summary("gsm_chars_total")
+            anki_total = _int_summary("anki_total_reviews")
+            anki_reviews = _int_summary("anki_reviews")
+            anki_true_retention = _float_summary("anki_true_retention")
+        else:
+            lifetime_seconds = int(
+                con.execute(
+                    "SELECT COALESCE(SUM(total_seconds), 0) FROM toggl_daily WHERE day >= ? AND day <= ?",
+                    (sum_start.isoformat(), today.isoformat()),
+                ).fetchone()[0]
+                or 0
+            )
+            lifetime_seconds += int(cfg.toggl_baseline_seconds)
+            today_seconds = int(
+                con.execute(
+                    "SELECT COALESCE(total_seconds, 0) FROM toggl_daily WHERE day=?",
+                    (today.isoformat(),),
+                ).fetchone()[0]
+                or 0
+            )
+            breakdown_rows = con.execute(
+                """
+                SELECT description, seconds
+                FROM toggl_daily_desc
+                WHERE day=?
+                ORDER BY seconds DESC, description
+                """,
+                (today.isoformat(),),
+            ).fetchall()
+            today_breakdown = [
+                {"desc": str(desc), "seconds": int(sec or 0)} for (desc, sec) in breakdown_rows
+            ]
+
+            tokei_surface_words = _read_tokei_surface_words(root)
+            known_lemmas = int(tokei_surface_words)
+            known_inflections = int(tokei_surface_words)
+            manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
+            ttsu_chars_total = _read_ttsu_chars(cfg, warnings=warnings)
+            gsm_chars_total = _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings)
+            anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
 
         # For deltas, compare against the previous report before the one we are generating.
         # If overwriting today's report, exclude that row itself.
@@ -1667,6 +1758,63 @@ def main(argv: list[str]) -> int:
         immersion_log, avg_seconds, avg_delta_seconds = _compute_immersion_windows(
             con, tz=tz, today=today, today_seconds=today_seconds, avg_window_days=7
         )
+
+        if args.sync_only:
+            report_no = int(latest_report[0]) if latest_report else None
+            report_generated_at = str(latest_report[1]) if latest_report else None
+            report_day = str(latest_report[2]) if latest_report else None
+
+            sync_model: dict[str, Any] = {
+                "schema_version": 1,
+                "synced_at": now.isoformat(),
+                "timezone": cfg.timezone,
+                "theme": cfg.theme,
+                "warnings": list(warnings),
+                "last_report": {
+                    "report_no": report_no,
+                    "generated_at": report_generated_at,
+                    "report_day": report_day,
+                },
+                "today_immersion": {"total_seconds": int(today_seconds), "entries": today_breakdown},
+                "summary": {
+                    "immersion_total_hours": round(float(lifetime_seconds) / 3600.0, 4),
+                    "immersion_today_hours": round(float(today_seconds) / 3600.0, 4),
+                    "immersion_total_delta_hours": float(total_immersion_delta_hours),
+                    "immersion_7d_avg_hours": round(float(avg_seconds) / 3600.0, 4),
+                    "immersion_7d_avg_delta_hours": round(float(avg_delta_seconds) / 3600.0, 4),
+                    "tokei_surface_words": int(tokei_surface_words),
+                    "known_lemmas": int(known_lemmas),
+                    "known_inflections": int(known_inflections),
+                    "known_words_delta": int(known_words_delta),
+                    "known_inflections_delta": int(known_inflections_delta),
+                    "manga_chars_total": int(manga_chars_total),
+                    "manga_chars_delta": int(manga_chars_delta),
+                    "ttsu_chars_total": int(ttsu_chars_total),
+                    "ttsu_chars_delta": int(ttsu_chars_delta),
+                    "gsm_chars_total": int(gsm_chars_total),
+                    "gsm_chars_delta": int(gsm_chars_delta),
+                    "anki_total_reviews": int(anki_total),
+                    "anki_total_reviews_delta": int(anki_total_delta),
+                    "anki_reviews": int(anki_reviews),
+                    "anki_true_retention": float(anki_true_retention),
+                    "anki_true_retention_rate": float(retention_rate),
+                    "anki_true_retention_delta": float(retention_delta),
+                },
+                "immersion_log": immersion_log,
+                "sources": {
+                    "toggl": {"enabled": True},
+                    "anki": {"enabled": True},
+                    "mokuro": {"enabled": bool(cfg.mokuro_volume_data_path.strip())},
+                    "ttsu": {"enabled": bool((cfg.ttsu_data_dir or "").strip())},
+                    "gsm": {"enabled": (cfg.gsm_db_path or "").strip().lower() != "off"},
+                    "known_csv": {"enabled": True},
+                    "phase2": {"enabled": True},
+                },
+            }
+
+            out_sync_path.write_text(json.dumps(sync_model, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(str(out_sync_path))
+            return 0
 
         if args.overwrite_today and prev_today:
             run_id = int(prev_today[0])

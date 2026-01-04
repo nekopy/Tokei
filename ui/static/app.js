@@ -499,24 +499,118 @@ async function refreshLogs() {
   if (r.ok) $("runtime-log").textContent = (r.lines || []).join("\n");
 }
 
-async function refreshLatestStats() {
+function escapeHtml(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function fmtHours(h) {
+  const n = Number(h);
+  if (!Number.isFinite(n)) return "?";
+  if (n >= 100) return String(Math.round(n));
+  return n.toFixed(2);
+}
+
+let latestSync = null;
+let latestReport = null;
+
+function renderGlance() {
+  const box = $("glance");
+  if (!latestSync || typeof latestSync !== "object") {
+    if (!latestReport || typeof latestReport !== "object") {
+      box.innerHTML = `<div class="hint">No sync snapshot yet. Click <b>Sync</b>.</div>`;
+      return;
+    }
+    const totalReadingChars =
+      Number(latestReport.manga_chars_total || 0) + Number(latestReport.ttsu_chars_total || 0) + Number(latestReport.gsm_chars_total || 0);
+    const rows = [
+      ["Latest report", latestReport.report_no != null ? `#${latestReport.report_no}` : "?"],
+      ["Total Lifetime Hours", fmtHours(latestReport.total_immersion_hours)],
+      ["Today immersion (h)", fmtHours((latestReport.today_immersion?.total_seconds || 0) / 3600.0)],
+      ["7d avg (h)", fmtHours((latestReport.avg_immersion_seconds || 0) / 3600.0)],
+      ["Known words", latestReport.known_words ?? "?"],
+      ["Total Characters Read", Number.isFinite(totalReadingChars) ? String(Math.trunc(totalReadingChars)) : "?"],
+      ["Total Anki Reviews", latestReport.total_reviews ?? "?"],
+      ["True retention (%)", fmtHours(latestReport.retention_rate)],
+    ];
+    const grid = rows
+      .map(([k, v]) => `<div class="gk">${escapeHtml(k)}</div><div class="gv">${escapeHtml(v)}</div>`)
+      .join("");
+    box.innerHTML = `<div class="glance-grid">${grid}</div><div class="hint">Sync snapshot not generated yet; showing latest report.</div>`;
+    return;
+  }
+
+  const s = latestSync.summary && typeof latestSync.summary === "object" ? latestSync.summary : {};
+  const syncedAt = latestSync.synced_at ? new Date(latestSync.synced_at).toLocaleString() : "?";
+  const totalReadingChars =
+    Number(s.manga_chars_total || 0) + Number(s.ttsu_chars_total || 0) + Number(s.gsm_chars_total || 0);
+
+  const rows = [
+    ["Synced", syncedAt],
+    ["Total Lifetime Hours", fmtHours(s.immersion_total_hours)],
+    ["Today immersion (h)", fmtHours(s.immersion_today_hours)],
+    ["7d avg (h)", fmtHours(s.immersion_7d_avg_hours)],
+    ["Known words", s.tokei_surface_words ?? s.known_words ?? "?"],
+    ["Total Characters Read", Number.isFinite(totalReadingChars) ? String(Math.trunc(totalReadingChars)) : "?"],
+    ["Total Anki Reviews", s.anki_total_reviews ?? "?"],
+    ["True retention (%)", fmtHours(s.anki_true_retention_rate)],
+  ];
+
+  const grid = rows
+    .map(([k, v]) => `<div class="gk">${escapeHtml(k)}</div><div class="gv">${escapeHtml(v)}</div>`)
+    .join("");
+
+  const lastReport = latestSync.last_report && typeof latestSync.last_report === "object" ? latestSync.last_report : null;
+  const reportLine =
+    lastReport && lastReport.report_no != null
+      ? `<div class="hint">Latest report: #${escapeHtml(lastReport.report_no)} (${escapeHtml(lastReport.report_day || "?")})</div>`
+      : `<div class="hint">Latest report: none yet</div>`;
+
+  box.innerHTML = `<div class="glance-grid">${grid}</div>${reportLine}`;
+}
+
+async function refreshLatestSync() {
+  const r = await api("GET", "/api/latest-sync");
+  latestSync = r.ok ? r.sync || null : null;
+  if (r.ok && r.sync) $("latest-sync-raw").textContent = JSON.stringify(r.sync, null, 2);
+  else $("latest-sync-raw").textContent = "";
+  renderGlance();
+}
+
+async function refreshLatestReportStats() {
   const r = await api("GET", "/api/latest-stats");
+  latestReport = r.ok ? r.stats || null : null;
   if (r.ok && r.stats) $("latest-stats").textContent = JSON.stringify(r.stats, null, 2);
   else $("latest-stats").textContent = "";
 }
 
-async function runNow() {
-  setStatus($("run-status"), "Running...", null);
+async function syncNow() {
+  setStatus($("sync-status"), "Syncing...", null);
   $("run-output").textContent = "";
-  const mode = $("run-mode").value;
-  const r = await api("POST", "/api/run", { mode });
-  if (r.ok) {
-    setStatus($("run-status"), `OK (Anki exported_at=${r.anki_exported_at || "?"})`, "good");
-  } else {
-    setStatus($("run-status"), r.stderr || `Failed (code ${r.code})`, "bad");
-  }
+  const r = await api("POST", "/api/sync", {});
+  if (r.ok) setStatus($("sync-status"), "OK", "good");
+  else setStatus($("sync-status"), r.stderr || `Failed (code ${r.code})`, "bad");
   $("run-output").textContent = [r.stdout, r.stderr].filter(Boolean).join("\n\n");
-  await refreshLatestStats();
+  await refreshLatestSync();
+  await refreshLatestReportStats();
+  await refreshLogs();
+}
+
+async function generateReport() {
+  setStatus($("report-status"), "Generating...", null);
+  $("run-output").textContent = "";
+  const mode = $("report-mode").value;
+  const syncBeforeReport = $("sync-before-report").checked;
+  const r = await api("POST", "/api/generate-report", { mode, sync_before_report: syncBeforeReport });
+  if (r.ok) setStatus($("report-status"), `OK (Anki exported_at=${r.anki_exported_at || "?"})`, "good");
+  else setStatus($("report-status"), r.stderr || `Failed (code ${r.code})`, "bad");
+  $("run-output").textContent = [r.stdout, r.stderr].filter(Boolean).join("\n\n");
+  await refreshLatestSync();
+  await refreshLatestReportStats();
   await refreshLogs();
 }
 
@@ -547,7 +641,8 @@ function wireUi() {
   $("gsm-open-plugin").addEventListener("click", gsmOpenPlugin);
   $("gsm-open-helper").addEventListener("click", gsmOpenHelper);
   $("logs-refresh").addEventListener("click", refreshLogs);
-  $("run-now").addEventListener("click", runNow);
+  $("sync-now").addEventListener("click", syncNow);
+  $("generate-report").addEventListener("click", generateReport);
 
   $("rule-add").addEventListener("click", () => {
     $("rules-body").appendChild(
@@ -577,7 +672,8 @@ async function init() {
   await loadToken();
   currentConfig = await loadConfig();
   await gsmRefreshStatus();
-  await refreshLatestStats();
+  await refreshLatestReportStats();
+  await refreshLatestSync();
   await refreshLogs();
 }
 

@@ -859,7 +859,11 @@ async function renderHtmlAndPng({ statsJsonPath, htmlOutPath, pngOutPath }) {
 
 async function main() {
   console.log(`Tokei v${APP_VERSION}`);
+  const syncOnly = process.argv.includes("--sync-only");
+  const noSync = process.argv.includes("--no-sync");
   const overwriteToday = process.argv.includes("--overwrite-today");
+  const allowSameDay = process.argv.includes("--allow-same-day");
+  if (syncOnly && noSync) throw new Error("--sync-only and --no-sync are mutually exclusive");
   const cfg = await ensureConfigOrSetup();
   const cacheDir = path.join(userRoot, "cache");
   const rawOutputDirCfg = typeof cfg.output_dir === "string" ? cfg.output_dir.trim() : "";
@@ -881,15 +885,31 @@ async function main() {
     throw tagAsFsOrDbError(e);
   }
 
-  await refreshHashiExport(cfg);
+  if (!noSync) {
+    await refreshHashiExport(cfg);
+  }
 
   const syncScript = path.join(__dirname, "tools", "tokei_sync.py");
   const syncArgs = [syncScript];
+  if (syncOnly) syncArgs.push("--sync-only");
+  if (noSync) syncArgs.push("--no-sync");
   if (overwriteToday) syncArgs.push("--overwrite-today");
+  if (allowSameDay) syncArgs.push("--allow-same-day");
   const pyCmd = getPythonCommand();
   const pyArgsPrefix = getPythonArgsPrefix();
   let r = runPythonLogged("tokei_sync.py", pyCmd, [...pyArgsPrefix, ...syncArgs], { cwd: appRoot });
   if (r.error) throw r.error;
+
+  if (syncOnly) {
+    if (r.status !== 0) {
+      const err = (r.stderr || "").trim();
+      throw makePythonProcessError(`python ${syncScript} failed (code ${r.status})\n${err}`, r.status);
+    }
+    const syncJsonPath = (r.stdout || "").trim();
+    console.log("Wrote:");
+    console.log(" ", syncJsonPath);
+    return;
+  }
 
   if (r.status === 2 && !overwriteToday) {
     let info = null;
@@ -910,9 +930,13 @@ async function main() {
     );
     if (action === "cancel") return;
     if (action === "overwrite") {
-      r = runPythonLogged("tokei_sync.py", pyCmd, [...pyArgsPrefix, syncScript, "--overwrite-today"], { cwd: appRoot });
+      r = runPythonLogged("tokei_sync.py", pyCmd, [...pyArgsPrefix, syncScript, ...(noSync ? ["--no-sync"] : []), "--overwrite-today"], {
+        cwd: appRoot,
+      });
     } else {
-      r = runPythonLogged("tokei_sync.py", pyCmd, [...pyArgsPrefix, syncScript, "--allow-same-day"], { cwd: appRoot });
+      r = runPythonLogged("tokei_sync.py", pyCmd, [...pyArgsPrefix, syncScript, ...(noSync ? ["--no-sync"] : []), "--allow-same-day"], {
+        cwd: appRoot,
+      });
     }
     if (r.error) throw r.error;
   }

@@ -161,15 +161,23 @@
 
       <section id="panel-run" class="panel">
         <div class="card">
-          <h2>Run</h2>
+          <h2>Sync + Report</h2>
           <div class="row">
-            <select id="run-mode" class="input">
+            <button id="sync-now" class="btn">Sync</button>
+            <select id="report-mode" class="input">
               <option value="overwrite">Overwrite today's report</option>
               <option value="new">Create a new report</option>
             </select>
-            <button id="run-now" class="btn primary">Run now</button>
+            <label class="check">
+              <input id="sync-before-report" type="checkbox" checked />
+              Sync before report
+            </label>
+            <button id="generate-report" class="btn primary">Generate report</button>
           </div>
-          <div id="run-status" class="status"></div>
+          <div class="row">
+            <div id="sync-status" class="status"></div>
+            <div id="report-status" class="status"></div>
+          </div>
           <div class="row">
             <button id="open-output" class="btn">Open output folder</button>
             <button id="open-html" class="btn">Open latest HTML</button>
@@ -178,8 +186,16 @@
         </div>
 
         <div class="card">
-          <h2>Latest stats</h2>
-          <pre id="latest-stats" class="mono"></pre>
+          <h2>At a glance</h2>
+          <div id="glance" class="glance"></div>
+          <details class="details">
+            <summary>Raw latest sync snapshot</summary>
+            <pre id="latest-sync-raw" class="mono"></pre>
+          </details>
+          <details class="details">
+            <summary>Raw latest report stats</summary>
+            <pre id="latest-stats" class="mono"></pre>
+          </details>
         </div>
       </section>
 
