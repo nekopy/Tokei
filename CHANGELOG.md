@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning when possible.
 
-## Unreleased
+## 0.4.0 - 2026-01-03
 
 ### Added
 - Sync-only snapshot output: `cache/latest_sync.json` (refreshable multiple times per day without allocating a `report_no`).
