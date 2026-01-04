@@ -120,6 +120,30 @@
           </div>
 
           <div class="card full">
+            <h2>Sources: Reading section</h2>
+            <div class="hint">
+              Controls whether reading sources are included in the report’s Reading card. If all are disabled, the Reading card is hidden.
+            </div>
+            <div class="row">
+              <label class="check">
+                <input id="mokuro-enabled" type="checkbox" />
+                Enable Mokuro (manga characters)
+              </label>
+              <label class="check">
+                <input id="ttsu-enabled" type="checkbox" />
+                Enable Ttsu Reader (novel characters)
+              </label>
+              <label class="check">
+                <input id="gsm-enabled" type="checkbox" />
+                Enable GSM (game characters)
+              </label>
+            </div>
+            <div class="hint">
+              These toggles do not affect GSM live sessions install; they only control inclusion in report totals/sections.
+            </div>
+          </div>
+
+          <div class="card full">
             <h2>GSM live sessions (optional)</h2>
             <div class="hint">
               GSM typically has a single <code>plugins.py</code>. If you already have one, paste the Tokei plugin code into your existing file (don't overwrite unless you intend to).

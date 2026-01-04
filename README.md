@@ -133,6 +133,9 @@ Tokei reads from these external tools but does not modify them:
   - Reads statistics_*.json under the configured ttu-reader-data directory
   - If missing, Tokei warns and continues
 
+Optional source toggles (to hide Reading sections):
+- `mokuro.enabled`, `ttsu.enabled`, `gsm.enabled` can be used to explicitly disable a source even if a path is configured.
+
 ## Notes
 
 - output_dir in config.json can be absolute or relative to the Tokei folder.

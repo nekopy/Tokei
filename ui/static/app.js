@@ -309,6 +309,20 @@ async function loadConfig() {
   const snap = cfg.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
   $("anki-enabled").checked = snap.enabled === true;
   $("anki-output-dir").value = typeof snap.output_dir === "string" ? snap.output_dir : "hashi_exports";
+
+  const mokuro = cfg.mokuro && typeof cfg.mokuro === "object" ? cfg.mokuro : {};
+  const mokuroPath = typeof mokuro.volume_data_path === "string" ? mokuro.volume_data_path.trim() : "";
+  $("mokuro-enabled").checked = typeof mokuro.enabled === "boolean" ? mokuro.enabled : Boolean(mokuroPath);
+
+  const ttsu = cfg.ttsu && typeof cfg.ttsu === "object" ? cfg.ttsu : {};
+  const ttsuPath = typeof ttsu.data_dir === "string" ? ttsu.data_dir.trim() : "";
+  $("ttsu-enabled").checked = typeof ttsu.enabled === "boolean" ? ttsu.enabled : Boolean(ttsuPath);
+
+  const gsm = cfg.gsm && typeof cfg.gsm === "object" ? cfg.gsm : {};
+  const gsmDbPath = typeof gsm.db_path === "string" ? gsm.db_path.trim() : "auto";
+  const gsmDefaultEnabled = gsmDbPath.toLowerCase() !== "off";
+  $("gsm-enabled").checked = typeof gsm.enabled === "boolean" ? gsm.enabled : gsmDefaultEnabled;
+
   setVisible($("anki-advanced"), false);
   populateRulesTable(Array.isArray(snap.rules) ? snap.rules : []);
   renderDiscoveredAnki(null);
@@ -322,6 +336,13 @@ async function saveConfig(currentCfg) {
   const od = $("anki-output-dir").value.trim();
   cfg.anki_snapshot.output_dir = od || "hashi_exports";
   cfg.anki_snapshot.rules = readRulesFromTable();
+
+  cfg.mokuro = cfg.mokuro && typeof cfg.mokuro === "object" ? cfg.mokuro : {};
+  cfg.mokuro.enabled = $("mokuro-enabled").checked;
+  cfg.ttsu = cfg.ttsu && typeof cfg.ttsu === "object" ? cfg.ttsu : {};
+  cfg.ttsu.enabled = $("ttsu-enabled").checked;
+  cfg.gsm = cfg.gsm && typeof cfg.gsm === "object" ? cfg.gsm : {};
+  cfg.gsm.enabled = $("gsm-enabled").checked;
 
   setStatus($("config-status"), "Saving...", null);
   const r = await api("POST", "/api/config", cfg);

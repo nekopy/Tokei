@@ -11,6 +11,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - New UI Run flow: separate **Sync** and **Generate report** actions with a “Sync before report” checkbox.
 - New CLI flags: `--sync-only` and `--no-sync` for separating cache refresh from report rendering.
 - Improved “At a glance” UI summary for latest sync/report.
+- Optional per-source disable toggles (`mokuro.enabled`, `ttsu.enabled`, `gsm.enabled`) to hide Reading sections for unused sources.
 
 ### Fixed
 

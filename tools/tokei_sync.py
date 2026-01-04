@@ -38,8 +38,11 @@ class Config:
     toggl_refresh_buffer_days: int
     toggl_chunk_days: int
     toggl_baseline_seconds: int
+    mokuro_enabled: bool
     mokuro_volume_data_path: str
+    ttsu_enabled: bool
     ttsu_data_dir: str
+    gsm_enabled: bool
     gsm_db_path: str
     phase2_csv_rule_id: str
     anki_snapshot_enabled: bool
@@ -471,12 +474,22 @@ def _load_config(path: Path) -> Config:
 
     mokuro = raw.get("mokuro") or {}
     mokuro_volume_data_path = str(mokuro.get("volume_data_path") or "")
+    mokuro_enabled = (
+        bool(mokuro.get("enabled"))
+        if isinstance(mokuro.get("enabled"), bool)
+        else bool(mokuro_volume_data_path.strip())
+    )
 
     ttsu = raw.get("ttsu") or {}
     ttsu_data_dir = str(ttsu.get("data_dir") or "")
+    ttsu_enabled = (
+        bool(ttsu.get("enabled")) if isinstance(ttsu.get("enabled"), bool) else bool(ttsu_data_dir.strip())
+    )
 
     gsm = raw.get("gsm") or {}
     gsm_db_path = str(gsm.get("db_path") or "auto")
+    gsm_default_enabled = gsm_db_path.strip().lower() != "off"
+    gsm_enabled = bool(gsm.get("enabled")) if isinstance(gsm.get("enabled"), bool) else gsm_default_enabled
 
     phase2 = raw.get("phase2") or {}
     phase2_csv_rule_id = str(phase2.get("csv_rule_id") or "default").strip() or "default"
@@ -495,8 +508,11 @@ def _load_config(path: Path) -> Config:
         toggl_refresh_buffer_days=refresh_buffer_days,
         toggl_chunk_days=chunk_days,
         toggl_baseline_seconds=baseline_seconds,
+        mokuro_enabled=mokuro_enabled,
         mokuro_volume_data_path=mokuro_volume_data_path,
+        ttsu_enabled=ttsu_enabled,
         ttsu_data_dir=ttsu_data_dir,
+        gsm_enabled=gsm_enabled,
         gsm_db_path=gsm_db_path,
         phase2_csv_rule_id=phase2_csv_rule_id,
         anki_snapshot_enabled=anki_snapshot_enabled,
@@ -1334,11 +1350,16 @@ def _build_report_model(
     gsm_chars_total: int,
     gsm_chars_delta: int,
 ) -> dict[str, Any]:
+    reading_enabled = bool(cfg.mokuro_enabled or cfg.ttsu_enabled or cfg.gsm_enabled)
     return {
         "report_no": run_id,
         "generated_label": _generated_label(now),
         "theme": cfg.theme,
         "one_page": bool(cfg.one_page),
+        "reading_enabled": reading_enabled,
+        "mokuro_enabled": bool(cfg.mokuro_enabled),
+        "ttsu_enabled": bool(cfg.ttsu_enabled),
+        "gsm_enabled": bool(cfg.gsm_enabled) and (cfg.gsm_db_path or "").strip().lower() != "off",
         "warnings": list(warnings),
         "total_immersion_hours": lifetime_seconds / 3600.0,
         "total_immersion_delta_hours": total_immersion_delta_hours,
@@ -1704,9 +1725,11 @@ def main(argv: list[str]) -> int:
             tokei_surface_words = _read_tokei_surface_words(root)
             known_lemmas = int(tokei_surface_words)
             known_inflections = int(tokei_surface_words)
-            manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings)
-            ttsu_chars_total = _read_ttsu_chars(cfg, warnings=warnings)
-            gsm_chars_total = _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings)
+            manga_chars_total = _read_mokuro_manga_chars(cfg, warnings=warnings) if cfg.mokuro_enabled else 0
+            ttsu_chars_total = _read_ttsu_chars(cfg, warnings=warnings) if cfg.ttsu_enabled else 0
+            gsm_chars_total = (
+                _read_gsm_chars(cfg, root=root, today=today, tz=tz, warnings=warnings) if cfg.gsm_enabled else 0
+            )
             anki_total, anki_reviews, anki_true_retention = _read_hashi_stats(cfg, warnings=warnings)
 
         # For deltas, compare against the previous report before the one we are generating.
@@ -1799,14 +1822,15 @@ def main(argv: list[str]) -> int:
                     "anki_true_retention": float(anki_true_retention),
                     "anki_true_retention_rate": float(retention_rate),
                     "anki_true_retention_delta": float(retention_delta),
+                    "reading_enabled": bool(cfg.mokuro_enabled or cfg.ttsu_enabled or cfg.gsm_enabled),
                 },
                 "immersion_log": immersion_log,
                 "sources": {
                     "toggl": {"enabled": True},
                     "anki": {"enabled": True},
-                    "mokuro": {"enabled": bool(cfg.mokuro_volume_data_path.strip())},
-                    "ttsu": {"enabled": bool((cfg.ttsu_data_dir or "").strip())},
-                    "gsm": {"enabled": (cfg.gsm_db_path or "").strip().lower() != "off"},
+                    "mokuro": {"enabled": bool(cfg.mokuro_enabled)},
+                    "ttsu": {"enabled": bool(cfg.ttsu_enabled)},
+                    "gsm": {"enabled": bool(cfg.gsm_enabled) and (cfg.gsm_db_path or "").strip().lower() != "off"},
                     "known_csv": {"enabled": True},
                     "phase2": {"enabled": True},
                 },

@@ -19,12 +19,15 @@
     "baseline_hours": 0
   },
   "mokuro": {
+    "enabled": false,
     "volume_data_path": ""
   },
   "ttsu": {
+    "enabled": false,
     "data_dir": ""
   },
   "gsm": {
+    "enabled": true,
     "db_path": "auto"
   },
   "phase2": {
