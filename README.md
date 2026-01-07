@@ -1,6 +1,6 @@
-**Alpha release**
+﻿**Pre-1.0 release**
 
-Tokei is currently in alpha. This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
+Tokei is under active development (pre-1.0). This README includes both quick-start instructions for regular users and advanced setup details for power users to ensure HTML **and PNG** reports work reliably.
 
 Note: Tokei runs as a console app (CLI), and also includes a setup-first UI (web + Electron wrapper).
 
@@ -40,22 +40,25 @@ The UI also maintains:
 ### Quick start (most users)
 
 1) Install Tokei (Electron UI build) and run it from the Start Menu shortcut
-2) Install Python and ensure `python --version` works (Tokei's Anki snapshot/export uses Python)
-3) During first run, use the built-in Anki snapshot setup to select decks + fields for Anki retention/review stats
-4) Optional: run `Tokei-UI.bat` any time to edit config, validate Anki export, test PNG rendering, and run reports (web UI)
-   - Dev/electron: `npm run ui:electron`
+2) Install Python and ensure `python --version` works (Tokei's pipeline calls Python)
+3) Optional (recommended for Mokuro/Ttsu): install Google Drive for Desktop so your reading data stays in sync
+   - After it's installed, open your Drive on your PC (often `G:\`) and locate:
+     - `ttu-reader-data` (Ttsu Reader)
+     - `mokuro-reader` (Mokuro)
+4) In Tokei:
+   - Setup tab: configure Toggl token (optional) and Anki snapshot rules, then save
+   - Sources tab: enable the sources you use and set paths
+     - Mokuro: select your `mokuro-reader` folder (Tokei finds `volume-data.json` inside)
+     - Ttsu: select your `ttu-reader-data` folder
+     - Known CSV: import a CSV into `TOKEI_USER_ROOT/data/known.csv` (then run Sync)
+5) Dashboard tab:
+   - Sync refreshes caches and updates `cache/latest_sync.json` (no report generated)
+   - Generate report produces HTML/PNG; by default it syncs first (checkbox)
 
-In the UI Run tab:
-- Use **Sync** to refresh caches and update `latest_sync.json` (no report generated)
-- Use **Generate report** to render HTML/PNG; by default it syncs first, with a checkbox to render from the latest sync snapshot
+Tip: use File > Open Logs to open the log folder if anything fails.
 
-In the UI Sources tab:
-- Toggle reading sources on/off (`mokuro.enabled`, `ttsu.enabled`, `gsm.enabled`) to include/exclude them from the report Reading section
-- Quick launch:
-  - Mokuro: opens `https://reader.mokuro.app`
-  - Ttsu: opens `https://reader.ttsu.app`
-  - GSM: launches the default installed exe under `%LOCALAPPDATA%\\Programs\\gamesentenceminer\\GameSentenceMiner.exe`
-- Known CSV: import a CSV file into `TOKEI_USER_ROOT/data/known.csv` (then run Sync)
+Optional: run `Tokei-UI.bat` any time to edit config, validate Anki export, test PNG rendering, and run reports (web UI)
+- Dev/electron: `npm run ui:electron`
 
 Optional (advanced): install the Hashi Anki add-on instead of using built-in snapshots:
 - In Anki: `Tools > Add-ons > Get Add-ons...` and enter `1132527238`
@@ -73,7 +76,7 @@ If you are running from source / a portable folder, install Node.js 18+ and run 
 
 If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG output will fail with a warning.
 
-This explicit setup is intentional for the alpha release to maximize PNG reliability.
+This explicit setup is intentional for the pre-1.0 release to maximize PNG reliability.
 
 ## Scripts (Windows)
 
@@ -146,6 +149,7 @@ Optional source toggles (to hide Reading sections):
 
 ## Notes
 
+- The Getting started page includes a Ko-fi widget that loads from https://storage.ko-fi.com when viewed.
 - output_dir in config.json can be absolute or relative to the Tokei folder.
 - Theme previews are available as PNGs in samples/.
 - For fresh Anki stats:
