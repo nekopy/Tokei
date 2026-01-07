@@ -138,15 +138,15 @@ select.input { max-width: 280px; }
   position: absolute;
   top: 8px;
   right: 8px;
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.15);
   color: var(--muted);
   cursor: pointer;
-  line-height: 26px;
-  font-size: 16px;
+  line-height: 20px;
+  font-size: 14px;
 }
 
 .panel-close:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }

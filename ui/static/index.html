@@ -45,8 +45,44 @@
               <input id="toggl-token" class="input" type="password" placeholder="Paste token (optional)" />
               <button id="toggl-reveal" class="btn">Show</button>
               <button id="toggl-save" class="btn">Save</button>
+              <button id="toggl-advanced-toggle" class="btn">Advanced</button>
             </div>
             <div class="hint">Stored in <code>toggl-token.txt</code>. Leave empty to clear.</div>
+
+            <div id="toggl-advanced" class="advanced" hidden>
+              <button id="toggl-advanced-close" class="panel-close" type="button" title="Hide">-</button>
+              <div class="row">
+                <div class="hint">
+                  Due to Toggl API/history limitations, Tokei effectively only pulls a recent window (by default the last <b>60 days</b>). If you've used Toggl for more than 60 days, it's highly recommended you enter a baseline lifetime time. Baseline should be lifetime immersion time up to <b>yesterday</b> (do not include today). Once set, you generally should not keep updating it unless you entered the wrong value or changed what you count as immersion.
+                </div>
+              </div>
+              <div class="row">
+                <input id="toggl-baseline-hms" class="input" type="text" placeholder="HH:MM:SS (e.g. 120:00:00)" />
+                <button id="toggl-open-summary" class="btn">Open Toggl Summary</button>
+                <button id="toggl-baseline-save" class="btn">Save config.json</button>
+              </div>
+              <details class="details">
+                <summary>How to find your lifetime hours in Toggl</summary>
+                <div class="hint">
+                  1) Open Toggl Track <b>Reports &gt; Summary</b>: <code>https://track.toggl.com/reports/summary</code>
+                </div>
+                <div class="hint">
+                  2) Set the date range:
+                  <ul>
+                    <li><b>Start</b>: the earliest day you started tracking immersion</li>
+                    <li><b>End</b>: yesterday (do NOT include today)</li>
+                  </ul>
+                </div>
+                <div class="hint">
+                  3) Select your immersion project(s) (select all that apply) and confirm you're in the right workspace.
+                </div>
+                <div class="hint">
+                  4) Copy the <b>Total</b> time shown at the top, then enter it here as <code>HH:MM:SS</code> (hours can exceed 24).
+                </div>
+              </details>
+              <div id="toggl-baseline-status" class="status"></div>
+            </div>
+
             <div id="toggl-status" class="status"></div>
           </div>
 

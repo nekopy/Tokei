@@ -46,7 +46,7 @@ The UI also maintains:
      - `ttu-reader-data` (Ttsu Reader)
      - `mokuro-reader` (Mokuro)
 4) In Tokei:
-   - Setup tab: configure Toggl token (optional) and Anki snapshot rules, then save
+   - Setup tab: configure Toggl token (optional), baseline lifetime hours (recommended if you've used Toggl >60 days), and Anki snapshot rules, then save
    - Sources tab: enable the sources you use and set paths
      - Mokuro: select your `mokuro-reader` folder (Tokei finds `volume-data.json` inside)
      - Ttsu: select your `ttu-reader-data` folder
@@ -155,7 +155,10 @@ Optional source toggles (to hide Reading sections):
 - For fresh Anki stats:
   - If `anki_snapshot.enabled=true`, Tokei exports from `collection.anki2` before reading the file.
   - Otherwise, Tokei triggers a Hashi export via http://127.0.0.1:8766/export before reading the file.
-- Toggl /me/time_entries may limit how far back it can query. Use toggl.baseline_hours to account for older time if needed.
+- Toggl history note: due to Toggl API limitations, Tokei effectively only pulls a recent window (by default the last 60 days via `toggl.refresh_days_back`).
+  - If you've used Toggl for longer than that, set `toggl.baseline_hours` to your lifetime total through yesterday (do NOT include today).
+  - Once set, you typically should not keep updating this value; only change it if you corrected your Toggl history/project selection or originally entered the wrong baseline.
+  - Recommended way to find it: Toggl Track → Reports → Summary (`https://track.toggl.com/reports/summary`), set Start = first immersion day, End = yesterday, select your immersion project(s), then copy the Total time.
 
 Advanced CLI flags:
 - `--sync-only`: refresh caches + write `cache/latest_sync.json` (no report render)

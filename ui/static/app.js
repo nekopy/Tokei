@@ -15,9 +15,28 @@ async function api(method, url, body) {
 }
 
 function setStatus(el, msg, kind) {
+  if (!el) return;
   el.textContent = msg || "";
   el.classList.remove("good", "bad");
   if (kind) el.classList.add(kind);
+}
+
+function parseHmsToHours(value) {
+  const parts = String(value || "").trim().split(":");
+  if (parts.length !== 3) throw new Error("expected HH:MM:SS");
+  const [h, m, s] = parts.map((p) => Number(p));
+  if (!Number.isFinite(h) || !Number.isFinite(m) || !Number.isFinite(s)) throw new Error("non-numeric values not allowed");
+  if (h < 0 || m < 0 || s < 0) throw new Error("negative values not allowed");
+  if (m >= 60 || s >= 60) throw new Error("minutes/seconds out of range");
+  return h + m / 60.0 + s / 3600.0;
+}
+
+function formatHmsFromHours(hours) {
+  const total = Math.round(Number(hours || 0) * 3600);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 let activeRuleRow = null;
@@ -506,6 +525,12 @@ async function loadConfig() {
   $("launch-start-minimized").checked = launch.start_minimized_to_tray === true;
   $("launch-close-minimizes").checked = launch.close_minimizes_to_tray === true;
 
+  const toggl = cfg.toggl && typeof cfg.toggl === "object" ? cfg.toggl : {};
+  const baselineHours = Number(toggl.baseline_hours || 0);
+  const baselineInput = $("toggl-baseline-hms");
+  if (baselineInput) baselineInput.value = formatHmsFromHours(Number.isFinite(baselineHours) ? baselineHours : 0);
+  setVisible($("toggl-advanced"), false);
+
   const snap = cfg.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
   $("anki-enabled").checked = snap.enabled === true;
   $("anki-output-dir").value = typeof snap.output_dir === "string" ? snap.output_dir : "hashi_exports";
@@ -542,6 +567,16 @@ async function saveConfig(currentCfg) {
   cfg.launch.start_minimized_to_tray = $("launch-start-minimized").checked;
   cfg.launch.close_minimizes_to_tray = $("launch-close-minimizes").checked;
 
+  cfg.toggl = cfg.toggl && typeof cfg.toggl === "object" ? cfg.toggl : {};
+  const baselineText = ($("toggl-baseline-hms")?.value || "").trim();
+  try {
+    cfg.toggl.baseline_hours = baselineText ? parseHmsToHours(baselineText) : 0;
+    setStatus($("toggl-baseline-status"), "", null);
+  } catch (e) {
+    setStatus($("toggl-baseline-status"), `Invalid baseline time: ${String(e?.message || e)}`, "bad");
+    return;
+  }
+
   cfg.anki_snapshot = cfg.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
   cfg.anki_snapshot.enabled = $("anki-enabled").checked;
   const od = $("anki-output-dir").value.trim();
@@ -565,6 +600,7 @@ async function saveConfig(currentCfg) {
   if (r.ok) {
     localStorage.setItem("tokei_setup_complete", "1");
     setStatus($("config-status"), "Saved config.json.", "good");
+    setStatus($("toggl-baseline-status"), "Saved.", "good");
   }
   else setStatus($("config-status"), r.error || "Failed.", "bad");
 }
@@ -1069,6 +1105,27 @@ function wireUi() {
 
   $("toggl-reveal").addEventListener("click", toggleTogglReveal);
   $("toggl-save").addEventListener("click", saveToken);
+  const togglAdvancedToggle = $("toggl-advanced-toggle");
+  if (togglAdvancedToggle) {
+    togglAdvancedToggle.addEventListener("click", () => toggleVisible($("toggl-advanced")));
+  }
+  const togglAdvancedClose = $("toggl-advanced-close");
+  if (togglAdvancedClose) {
+    togglAdvancedClose.addEventListener("click", () => setVisible($("toggl-advanced"), false));
+  }
+  const togglOpenSummary = $("toggl-open-summary");
+  if (togglOpenSummary) {
+    togglOpenSummary.addEventListener("click", async () => {
+      await api("POST", "/api/open", { target: "https://track.toggl.com/reports/summary" });
+    });
+  }
+  const togglBaselineSave = $("toggl-baseline-save");
+  if (togglBaselineSave) {
+    togglBaselineSave.addEventListener("click", async () => {
+      await saveConfig(currentConfig);
+      currentConfig = (await loadConfig()) || currentConfig;
+    });
+  }
   $("anki-discover").addEventListener("click", ankiDiscover);
   $("anki-test-export").addEventListener("click", ankiTestExport);
   $("anki-advanced-toggle").addEventListener("click", () => toggleVisible($("anki-advanced")));
