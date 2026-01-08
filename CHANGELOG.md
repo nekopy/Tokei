@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning when possible.
 
+## 0.7.2 - 2026-01-08
+
+### Fixed
+- Anki discover (`tokei_anki_export.py --discover`): avoid `UnicodeEncodeError` on Windows when decks/note types contain non-ASCII characters (e.g. kana/kanji) by writing UTF-8 to stdout.
+
 ## 0.7.1 - 2026-01-08
 
 ### Added

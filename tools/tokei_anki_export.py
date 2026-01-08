@@ -787,7 +787,16 @@ def main(argv: list[str]) -> int:
             except Exception:
                 profile = "User 1"
         payload = discover_collection(profile=profile)
-        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        payload_text = json.dumps(payload, ensure_ascii=False, indent=2)
+        # On Windows, stdout can default to a legacy codepage (e.g. cp1252) that can't print JP deck names.
+        # Write UTF-8 bytes directly so discovery works regardless of console encoding.
+        try:
+            import sys
+
+            sys.stdout.buffer.write(payload_text.encode("utf-8", errors="replace"))
+            sys.stdout.buffer.write(b"\n")
+        except Exception:
+            print(payload_text)
         return 0 if payload.get("ok") else 1
 
     export_snapshot(root=root, trigger=str(args.trigger))
