@@ -17,7 +17,12 @@ from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
-from tokei_errors import ApiError, ConfigError
+try:
+    from tokei_errors import ApiError, ConfigError
+except ModuleNotFoundError:
+    _root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(_root / "src" / "tokei"))
+    from tokei_errors import ApiError, ConfigError
 
 try:
     from zoneinfo import ZoneInfo

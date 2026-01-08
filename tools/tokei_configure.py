@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
-from tokei_errors import ConfigError
+try:
+    from tokei_errors import ConfigError
+except ModuleNotFoundError:
+    _root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(_root / "src" / "tokei"))
+    from tokei_errors import ConfigError
 
 def _parse_hms_to_hours(value: str) -> float:
     parts = value.strip().split(":")
