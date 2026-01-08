@@ -540,6 +540,21 @@
       </div>
     </div>
 
+    <div id="wizard-exit-overlay" class="wizard-exit-overlay" hidden aria-hidden="true">
+      <div class="wizard-exit" role="dialog" aria-modal="true" aria-labelledby="wizard-exit-title">
+        <div class="wizard-exit-title" id="wizard-exit-title">Exit setup wizard?</div>
+        <div class="wizard-exit-body">
+          You haven’t finished setup yet. If you exit now, Tokei may not be able to sync or generate reports until setup is completed.
+        </div>
+        <div id="wizard-exit-error" class="status bad"></div>
+        <div class="wizard-exit-actions">
+          <button id="wizard-exit-save" class="btn primary" type="button">Save and exit</button>
+          <button id="wizard-exit-nosave" class="btn" type="button">Exit without saving</button>
+          <button id="wizard-exit-cancel" class="btn" type="button">Continue setup</button>
+        </div>
+      </div>
+    </div>
+
     <script type="module" src="app.js"></script>
   </body>
 </html>

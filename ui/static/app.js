@@ -1336,6 +1336,14 @@ function showWizardOverlay(show) {
   overlay.setAttribute("aria-hidden", show ? "false" : "true");
 }
 
+function showWizardExitOverlay(show) {
+  const overlay = $("wizard-exit-overlay");
+  if (!overlay) return;
+  overlay.hidden = !show;
+  overlay.setAttribute("aria-hidden", show ? "false" : "true");
+  if (!show) setStatus($("wizard-exit-error"), "", null);
+}
+
 function wizardSetError(msg) {
   const el = $("wizard-error");
   if (!el) return;
@@ -1957,7 +1965,7 @@ async function renderWizard() {
     });
 
     $("wiz-open-drive")?.addEventListener("click", async () => {
-      await api("POST", "/api/open", { target: "https://drive.google.com/drive/download/" });
+      await api("POST", "/api/open", { target: "https://workspace.google.com/products/drive/" });
     });
 
     $("wiz-mokuro-browse")?.addEventListener("click", async () => wizardPickInto("wiz-mokuro-path", "Select Mokuro folder (mokuro-reader)"));
@@ -2127,6 +2135,7 @@ async function openWizard({ forced = false } = {}) {
   wizardState.outputDir = ($("report-output-dir")?.value || "").trim();
   wizardState.timezone = ($("report-timezone")?.value || "").trim() || "local";
   wizardState.theme = ($("report-theme")?.value || "").trim() || "dark-graphite";
+  wizardLoadDraftFromLocalStorage();
 
   wizardState.open = true;
   await renderWizard();
@@ -2136,8 +2145,118 @@ async function openWizard({ forced = false } = {}) {
 async function closeWizard() {
   await refreshWizardConfigMissing();
   if (wizardState.forced && wizardState.configMissing) return;
+  showWizardExitOverlay(false);
   showWizardOverlay(false);
   wizardState.open = false;
+}
+
+function wizardShouldConfirmExit() {
+  if (!wizardState.open) return false;
+  if (wizardState.forced && wizardState.configMissing) return false;
+  return wizardState.step > 0;
+}
+
+async function wizardCaptureAllOpenStepInputs() {
+  if (wizardState.step === 1) wizardReadStep2FromUi();
+  if (wizardState.step === 2) wizardCaptureConnectFromUi();
+  if (wizardState.step === 3) wizardReadStep4FromUi();
+}
+
+function wizardPersistDraftToLocalStorage() {
+  try {
+    const draft = {
+      includeAnki: wizardState.includeAnki,
+      includeMokuro: wizardState.includeMokuro,
+      includeTtsu: wizardState.includeTtsu,
+      includeGsm: wizardState.includeGsm,
+      togglToken: wizardState.togglToken,
+      togglBaselineHms: wizardState.togglBaselineHms,
+      ankiProfile: wizardState.ankiProfile,
+      ankiRulesDraft: wizardState.ankiRulesDraft,
+      mokuroPath: wizardState.mokuroPath,
+      ttsuPath: wizardState.ttsuPath,
+      outputDir: wizardState.outputDir,
+      timezone: wizardState.timezone,
+      theme: wizardState.theme,
+    };
+    localStorage.setItem("tokei_wizard_draft_v1", JSON.stringify(draft));
+  } catch {
+    // ignore
+  }
+}
+
+function wizardLoadDraftFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem("tokei_wizard_draft_v1");
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    if (typeof parsed.includeAnki === "boolean") wizardState.includeAnki = parsed.includeAnki;
+    if (typeof parsed.includeMokuro === "boolean") wizardState.includeMokuro = parsed.includeMokuro;
+    if (typeof parsed.includeTtsu === "boolean") wizardState.includeTtsu = parsed.includeTtsu;
+    if (typeof parsed.includeGsm === "boolean") wizardState.includeGsm = parsed.includeGsm;
+    if (typeof parsed.togglToken === "string") wizardState.togglToken = parsed.togglToken;
+    if (typeof parsed.togglBaselineHms === "string") wizardState.togglBaselineHms = parsed.togglBaselineHms;
+    if (typeof parsed.ankiProfile === "string") wizardState.ankiProfile = parsed.ankiProfile;
+    if (Array.isArray(parsed.ankiRulesDraft)) wizardState.ankiRulesDraft = parsed.ankiRulesDraft;
+    if (typeof parsed.mokuroPath === "string") wizardState.mokuroPath = parsed.mokuroPath;
+    if (typeof parsed.ttsuPath === "string") wizardState.ttsuPath = parsed.ttsuPath;
+    if (typeof parsed.outputDir === "string") wizardState.outputDir = parsed.outputDir;
+    if (typeof parsed.timezone === "string") wizardState.timezone = parsed.timezone;
+    if (typeof parsed.theme === "string") wizardState.theme = parsed.theme;
+  } catch {
+    // ignore
+  }
+}
+
+async function wizardSaveDraftToDisk() {
+  await wizardCaptureAllOpenStepInputs();
+  wizardPersistDraftToLocalStorage();
+
+  await refreshWizardConfigMissing();
+  if (wizardState.configMissing) {
+    const ok = await createConfigFromWizard();
+    if (!ok) return { ok: false, error: "Could not create config.json." };
+  }
+
+  if (wizardState.togglToken) {
+    const rTok = await api("POST", "/api/toggl-token", { token: wizardState.togglToken });
+    if (!rTok.ok) return { ok: false, error: rTok.error || "Failed to save Toggl token." };
+  }
+
+  wizardApplyStep2ChoicesToUi();
+  wizardApplyOptionalSourcesToUi();
+  wizardApplyReportSettingsToUi();
+
+  if (wizardState.togglBaselineHms) {
+    try {
+      parseHmsToHours(wizardState.togglBaselineHms);
+      if ($("toggl-baseline-hms")) $("toggl-baseline-hms").value = wizardState.togglBaselineHms;
+    } catch {
+      // ignore invalid baseline in draft saves
+    }
+  }
+
+  if (wizardState.includeAnki) {
+    if ($("anki-profile")) $("anki-profile").value = wizardState.ankiProfile || "User 1";
+    populateRulesTable(Array.isArray(wizardState.ankiRulesDraft) ? wizardState.ankiRulesDraft : []);
+    const complete = readRulesFromTable();
+    if (!complete.length) {
+      if ($("anki-enabled")) $("anki-enabled").checked = false;
+      if ($("anki-nonblocking")) $("anki-nonblocking").checked = true;
+    }
+  }
+
+  await saveConfig(currentConfig);
+  currentConfig = (await loadConfig()) || currentConfig;
+  return { ok: true };
+}
+
+async function closeWizardWithOptionalConfirm() {
+  await refreshWizardConfigMissing();
+  if (wizardState.forced && wizardState.configMissing) return;
+  if (!wizardShouldConfirmExit()) return closeWizard();
+  showWizardExitOverlay(true);
 }
 
 async function wizardBack() {
@@ -2460,11 +2579,44 @@ function wireUi() {
   const wizardOpenBtn = $("wizard-open");
   if (wizardOpenBtn) wizardOpenBtn.addEventListener("click", async () => openWizard({ forced: false }));
   const wizardCloseBtn = $("wizard-close");
-  if (wizardCloseBtn) wizardCloseBtn.addEventListener("click", closeWizard);
+  if (wizardCloseBtn) wizardCloseBtn.addEventListener("click", closeWizardWithOptionalConfirm);
   const wizardBackBtn = $("wizard-back");
   if (wizardBackBtn) wizardBackBtn.addEventListener("click", wizardBack);
   const wizardNextBtn = $("wizard-next");
   if (wizardNextBtn) wizardNextBtn.addEventListener("click", wizardNext);
+
+  const wizardExitSave = $("wizard-exit-save");
+  if (wizardExitSave) {
+    wizardExitSave.addEventListener("click", async () => {
+      const err = $("wizard-exit-error");
+      setStatus(err, "Saving...", null);
+      const saveBtn = $("wizard-exit-save");
+      const noSaveBtn = $("wizard-exit-nosave");
+      const cancelBtn = $("wizard-exit-cancel");
+      if (saveBtn) saveBtn.disabled = true;
+      if (noSaveBtn) noSaveBtn.disabled = true;
+      if (cancelBtn) cancelBtn.disabled = true;
+      try {
+        const r = await wizardSaveDraftToDisk();
+        if (!r.ok) {
+          setStatus(err, r.error || "Save failed.", "bad");
+          return;
+        }
+        showWizardExitOverlay(false);
+        await closeWizard();
+      } finally {
+        if (saveBtn) saveBtn.disabled = false;
+        if (noSaveBtn) noSaveBtn.disabled = false;
+        if (cancelBtn) cancelBtn.disabled = false;
+      }
+    });
+  }
+
+  const wizardExitNoSave = $("wizard-exit-nosave");
+  if (wizardExitNoSave) wizardExitNoSave.addEventListener("click", async () => { showWizardExitOverlay(false); await closeWizard(); });
+
+  const wizardExitCancel = $("wizard-exit-cancel");
+  if (wizardExitCancel) wizardExitCancel.addEventListener("click", () => showWizardExitOverlay(false));
 }
 
 async function init() {

@@ -187,6 +187,52 @@ select.input { max-width: 280px; }
   display: none !important;
 }
 
+.wizard-exit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.wizard-exit-overlay[hidden],
+.wizard-exit-overlay[aria-hidden="true"] {
+  display: none !important;
+}
+
+.wizard-exit {
+  width: 100%;
+  max-width: 560px;
+  background: linear-gradient(180deg, var(--panel), var(--panel2));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.wizard-exit-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wizard-exit-body {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.wizard-exit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+
 .wizard {
   width: 100%;
   max-width: 860px;
