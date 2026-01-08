@@ -30,6 +30,12 @@ The UI also maintains:
 - `cache/latest_sync.json`: latest sync snapshot (safe to refresh multiple times per day)
 - `cache/latest_stats.json`: latest report snapshot (includes `report_no`, used to open latest HTML)
 
+## Installer (recommended)
+
+If you install Tokei from the Windows installer in Releases, there are no extra runtime dependencies to install:
+- The desktop app includes its own Node runtime (Electron).
+- The report pipeline bundles Python and Puppeteer (including the browser needed for PNG screenshots).
+
 ## Theme samples
 
 <p>
@@ -42,7 +48,7 @@ The UI also maintains:
 ### Quick start (most users)
 
 1) Install Tokei (Electron UI build) and run it from the Start Menu shortcut
-2) No extra installs needed for the Electron build (it bundles Python + Puppeteer for the report pipeline)
+2) No extra installs needed (the installer bundles the full report pipeline)
 3) Optional (recommended for Mokuro/Ttsu): install Google Drive for Desktop so your reading data stays in sync
    - After it's installed, open your Drive on your PC (often `G:\`) and locate:
      - `ttu-reader-data` (Ttsu Reader)
@@ -81,6 +87,8 @@ If Puppeteer is not installed, Tokei will still generate HTML reports, but PNG o
 This explicit setup is intentional for the pre-1.0 release to maximize PNG reliability.
 
 ## Scripts (Windows)
+
+These scripts are intended for running from source / a portable folder. If you installed the Electron desktop app from Releases, you do not need to run these.
 
 - Setup-Environment.bat
   - Creates the local Python venv in .venv
