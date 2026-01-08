@@ -89,6 +89,25 @@
           <div class="card full">
             <h2>Anki snapshot rules</h2>
             <div class="row">
+              <div style="flex: 1; min-width: 220px">
+                <div class="subhead">Anki profile</div>
+                <input id="anki-profile" class="input" type="text" placeholder="e.g. User 1" />
+              </div>
+              <div style="flex: 1; min-width: 220px">
+                <div class="subhead">Detected profiles</div>
+                <select id="anki-profile-select" class="input">
+                  <option value="">(detect profiles)</option>
+                </select>
+              </div>
+              <div style="display: flex; align-items: flex-end; gap: 10px">
+                <button id="anki-profiles-refresh" class="btn" type="button">Detect</button>
+              </div>
+            </div>
+            <div class="hint">
+              Used to locate your Anki profile folder (where <code>collection.anki2</code> lives). Click Save after changing it.
+            </div>
+
+            <div class="row">
               <button id="anki-discover" class="btn">Discover decks/fields</button>
               <button id="anki-test-export" class="btn">Test export</button>
               <div id="anki-status" class="status"></div>

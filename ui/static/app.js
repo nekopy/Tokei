@@ -44,6 +44,35 @@ let discoveredAnki = null;
 
 const KNOWN_TABS = ["run", "setup", "sources", "getting-started", "logs"];
 
+function getAnkiProfileFromUi() {
+  const raw = ($("anki-profile")?.value || "").trim();
+  return raw || "User 1";
+}
+
+async function refreshAnkiProfiles() {
+  const select = $("anki-profile-select");
+  if (!select) return;
+
+  const r = await api("GET", "/api/anki/profiles");
+  const profiles = Array.isArray(r.profiles) ? r.profiles : [];
+  const current = getAnkiProfileFromUi();
+
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = profiles.length ? "(select a profile)" : "(no profiles detected)";
+  select.appendChild(placeholder);
+
+  for (const p of profiles) {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    select.appendChild(opt);
+  }
+
+  if (profiles.includes(current)) select.value = current;
+}
+
 function selectTab(name) {
   for (const t of KNOWN_TABS) {
     const tabEl = $(`tab-${t}`);
@@ -535,6 +564,12 @@ async function loadConfig() {
   $("anki-enabled").checked = snap.enabled === true;
   $("anki-output-dir").value = typeof snap.output_dir === "string" ? snap.output_dir : "hashi_exports";
 
+  const ankiProfileInput = $("anki-profile");
+  if (ankiProfileInput) {
+    const profile = typeof cfg.anki_profile === "string" && cfg.anki_profile.trim() ? cfg.anki_profile.trim() : "User 1";
+    ankiProfileInput.value = profile;
+  }
+
   const mokuro = cfg.mokuro && typeof cfg.mokuro === "object" ? cfg.mokuro : {};
   const mokuroPath = typeof mokuro.volume_data_path === "string" ? mokuro.volume_data_path.trim() : "";
   $("mokuro-enabled").checked = typeof mokuro.enabled === "boolean" ? mokuro.enabled : Boolean(mokuroPath);
@@ -557,6 +592,7 @@ async function loadConfig() {
   setVisible($("anki-advanced"), false);
   populateRulesTable(Array.isArray(snap.rules) ? snap.rules : []);
   renderDiscoveredAnki(null);
+  await refreshAnkiProfiles();
   return cfg;
 }
 
@@ -583,6 +619,8 @@ async function saveConfig(currentCfg) {
   cfg.anki_snapshot.output_dir = od || "hashi_exports";
   cfg.anki_snapshot.rules = readRulesFromTable();
 
+  cfg.anki_profile = getAnkiProfileFromUi();
+
   cfg.mokuro = cfg.mokuro && typeof cfg.mokuro === "object" ? cfg.mokuro : {};
   cfg.mokuro.enabled = $("mokuro-enabled").checked;
   cfg.mokuro.volume_data_path = ($("mokuro-path")?.value || "").trim();
@@ -607,7 +645,7 @@ async function saveConfig(currentCfg) {
 
 async function ankiDiscover() {
   setStatus($("anki-status"), "Discovering...", null);
-  const r = await api("POST", "/api/anki/discover", {});
+  const r = await api("POST", "/api/anki/discover", { profile: getAnkiProfileFromUi() });
   if (r.ok) {
     const ok = r.payload?.ok === true;
     if (!ok) {
@@ -1126,6 +1164,19 @@ function wireUi() {
       currentConfig = (await loadConfig()) || currentConfig;
     });
   }
+
+  const ankiProfilesRefresh = $("anki-profiles-refresh");
+  if (ankiProfilesRefresh) ankiProfilesRefresh.addEventListener("click", refreshAnkiProfiles);
+  const ankiProfileSelect = $("anki-profile-select");
+  if (ankiProfileSelect) {
+    ankiProfileSelect.addEventListener("change", () => {
+      const v = (ankiProfileSelect.value || "").trim();
+      if (!v) return;
+      const input = $("anki-profile");
+      if (input) input.value = v;
+    });
+  }
+
   $("anki-discover").addEventListener("click", ankiDiscover);
   $("anki-test-export").addEventListener("click", ankiTestExport);
   $("anki-advanced-toggle").addEventListener("click", () => toggleVisible($("anki-advanced")));

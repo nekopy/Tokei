@@ -101,6 +101,39 @@ function getKnownCsvPath() {
   return path.join(userRoot, "data", "known.csv");
 }
 
+function getAnki2BaseDir() {
+  const home = os.homedir ? os.homedir() : "";
+  if (process.platform === "win32") {
+    const appdata = process.env.APPDATA;
+    return appdata ? path.join(appdata, "Anki2") : null;
+  }
+  if (process.platform === "darwin") {
+    return home ? path.join(home, "Library", "Application Support", "Anki2") : null;
+  }
+  return home ? path.join(home, ".local", "share", "Anki2") : null;
+}
+
+function listAnkiProfiles() {
+  const baseDir = getAnki2BaseDir();
+  const profiles = [];
+  if (!baseDir || !fs.existsSync(baseDir)) return { baseDir, profiles };
+
+  try {
+    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const name = e.name;
+      const collectionDb = path.join(baseDir, name, "collection.anki2");
+      if (fs.existsSync(collectionDb)) profiles.push(name);
+    }
+  } catch {
+    // ignore
+  }
+
+  profiles.sort((a, b) => a.localeCompare(b));
+  return { baseDir, profiles };
+}
+
 function launchExe(exePath) {
   if (process.platform === "win32") {
     spawn("cmd", ["/c", "start", "", exePath], { stdio: "ignore", detached: true, windowsHide: true }).unref();
@@ -455,9 +488,23 @@ async function handleApi(req, res) {
     return json(res, 200, { ok: r.ok, path: syncPath, error: r.error, sync: r.value });
   }
 
+  if (req.method === "GET" && p === "/api/anki/profiles") {
+    const { baseDir, profiles } = listAnkiProfiles();
+    return json(res, 200, { ok: true, baseDir, profiles });
+  }
+
   if (req.method === "POST" && p === "/api/anki/discover") {
     const cfg = safeReadJson(getConfigPath()).value || {};
-    const profile = typeof cfg?.anki_profile === "string" && cfg.anki_profile.trim() ? cfg.anki_profile.trim() : "User 1";
+    let bodyProfile = "";
+    try {
+      const raw = await readBody(req);
+      const parsed = raw && raw.trim() ? JSON.parse(raw) : null;
+      bodyProfile = typeof parsed?.profile === "string" ? parsed.profile.trim() : "";
+    } catch {
+      bodyProfile = "";
+    }
+    const profile =
+      bodyProfile || (typeof cfg?.anki_profile === "string" && cfg.anki_profile.trim() ? cfg.anki_profile.trim() : "User 1");
     const py = getPythonCommand();
     const pyArgs = [...getPythonArgsPrefix(), path.join(appRoot, "tools", "tokei_anki_export.py"), "--discover", "--profile", profile];
     const r = await runProcess(py, pyArgs, { cwd: appRoot, env: process.env });

@@ -125,6 +125,8 @@ These scripts are intended for running from source / a portable folder. If you i
 - `config.json` is the live config used by Tokei.
 - `config.example.json` is documentation only (not loaded at runtime).
 - Field types are implied by the example values; keep the same types when editing `config.json`.
+- Anki profile:
+  - `anki_profile`: the name of your local Anki profile folder (defaults to `User 1`).
 - Anki snapshot:
   - `anki_snapshot.enabled`: if true, Tokei uses the built-in Anki snapshot exporter instead of Hashi HTTP exports.
   - `anki_snapshot.rules`: list of deck/field rules (supports multiple decks and note types per rule); see `config.example.json`.
