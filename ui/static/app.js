@@ -670,7 +670,7 @@ async function ankiTestExport() {
     const msg = `Export OK. exported_at=${r.exported_at || "?"}`;
     setStatus($("anki-status"), msg, "good");
   } else {
-    setStatus($("anki-status"), r.stderr || "Export failed.", "bad");
+    setStatus($("anki-status"), r.message || r.stderr || r.error || "Export failed.", "bad");
   }
 }
 

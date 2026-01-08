@@ -148,6 +148,22 @@ async function refreshHashiExport(cfg) {
 
   const ankiSnap = cfg.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
   if (ankiSnap.enabled === true) {
+    const rules = Array.isArray(ankiSnap.rules) ? ankiSnap.rules : [];
+    if (!rules.length) {
+      const msg =
+        'Anki snapshot exporter is enabled, but no rules are configured.\n\n' +
+        'Fix:\n' +
+        '- Open the Tokei Setup tab\n' +
+        '- Under "Anki snapshot rules", click "Add rule" and configure at least one deck/field rule\n' +
+        '- Click "Save config.json"\n\n' +
+        'Or disable the built-in exporter (and use the Hashi add-on) by unchecking "Enable built-in Anki snapshot exporter".';
+      if (!requireFresh) {
+        console.warn(msg);
+        return;
+      }
+      throw new Error(msg);
+    }
+
     const exportScript = path.join(__dirname, "tools", "tokei_anki_export.py");
     const pyCmd = getPythonCommand();
     const pyArgsPrefix = getPythonArgsPrefix();

@@ -519,6 +519,21 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && p === "/api/anki/test-export") {
     const cfg = safeReadJson(getConfigPath()).value || {};
+    try {
+      const snap = cfg?.anki_snapshot && typeof cfg.anki_snapshot === "object" ? cfg.anki_snapshot : {};
+      const enabled = snap?.enabled === true;
+      const rules = Array.isArray(snap?.rules) ? snap.rules : [];
+      if (enabled && rules.length === 0) {
+        return json(res, 200, {
+          ok: false,
+          error: "anki_snapshot_rules_missing",
+          message:
+            'Anki snapshot exporter is enabled, but no rules are configured. Add at least one rule in Setup → "Anki snapshot rules", then click "Save config.json".',
+        });
+      }
+    } catch {
+      // ignore
+    }
     const statsPath = resolveHashiStatsPath(cfg);
     const beforeMtime = statsPath && fs.existsSync(statsPath) ? fs.statSync(statsPath).mtimeMs : 0;
     const py = getPythonCommand();
