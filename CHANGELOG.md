@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning when possible.
 
+## 0.8.0 - 2026-01-08
+
+### Added
+- Electron UI: first-run Setup Wizard overlay (auto-opens when `config.json` is missing) plus a Setup tab button to rerun the wizard at any time.
+- Electron UI: Report settings panel in Setup (output folder, timezone, theme picker, open theme samples).
+- Electron UI: Anki “Don’t block reports if Anki isn’t set up” toggle (sets `hashi.require_fresh=false`).
+- Wizard: exit confirmation dialog (Save and exit / Exit without saving / Continue setup) with draft saving so users can resume later.
+- Wizard: Anki rule editor now matches the Setup tab flow (multiple rules, selectable rule row, and discover chips for decks/note types/fields).
+
+### Changed
+- Wizard: Google Drive install link updated to the Workspace Drive page.
+- Setup copy: clarified that the Toggl token is required for Toggl hours.
+
+### Fixed
+- Wizard overlay: ensure `hidden` reliably hides the overlay (fixes “wizard appears even when closed”).
+- Electron UI: `?tab=...` handling no longer prevents the “missing config -> force wizard” flow.
+- Wizard: render content before showing the overlay (fixes blank Welcome screen until Next/Back).
+- Wizard: Anki Discover no longer renders decks as `[object Object]`.
+
 ## 0.7.2 - 2026-01-08
 
 ### Fixed
